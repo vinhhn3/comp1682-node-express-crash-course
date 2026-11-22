@@ -5,9 +5,11 @@ const connectToDatabase = require('./src/config/database');
 const productRoutes = require('./src/routes/productRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const { notFound, errorHandler } = require('./src/middlewares/errorMiddleware');
+const { globalLimiter } = require('./src/middlewares/rateLimitMiddleware');
 
 const app = express();
 
+app.use(globalLimiter);
 app.use(express.json());
 
 app.get('/health', (req, res) => {
