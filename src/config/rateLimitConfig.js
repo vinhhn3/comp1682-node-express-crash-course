@@ -1,8 +1,10 @@
+const config = require('./index');
+
 const shared = {
   windowMs: 60 * 1000,
   standardHeaders: 'draft-6',
   legacyHeaders: false,
-  skip: () => process.env.NODE_ENV === 'test',
+  skip: () => config.nodeEnv === 'test',
 };
 
 module.exports = {

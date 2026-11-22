@@ -4,9 +4,7 @@ const jwt = require('jsonwebtoken');
 const asyncHandler = require('../utils/asyncHandler');
 const AppError = require('../errors/AppError');
 const userRepository = require('../repositories/userRepository');
-
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'dev-access-secret';
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'dev-refresh-secret';
+const config = require('../config');
 
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -21,11 +19,11 @@ function tokensFor(user) {
   const payload = { id: user.id, username: user.username, role: user.role };
 
   return {
-    accessToken: jwt.sign({ ...payload, jti: crypto.randomUUID() }, ACCESS_TOKEN_SECRET, {
-      expiresIn: '15m',
+    accessToken: jwt.sign({ ...payload, jti: crypto.randomUUID() }, config.accessSecret, {
+      expiresIn: config.accessTtl,
     }),
-    refreshToken: jwt.sign({ ...payload, jti: crypto.randomUUID() }, REFRESH_TOKEN_SECRET, {
-      expiresIn: '7d',
+    refreshToken: jwt.sign({ ...payload, jti: crypto.randomUUID() }, config.refreshSecret, {
+      expiresIn: config.refreshTtl,
     }),
     user: payload,
   };
@@ -70,7 +68,7 @@ exports.refresh = asyncHandler(async (req, res) => {
 
   let payload;
   try {
-    payload = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
+    payload = jwt.verify(refreshToken, config.refreshSecret);
   } catch {
     throw new AppError('Invalid or expired refresh token', 401);
   }

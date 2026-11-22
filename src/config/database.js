@@ -1,10 +1,9 @@
 const mongoose = require('mongoose');
+const config = require('./index');
 
 async function connectToDatabase() {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/shop';
-
   try {
-    await mongoose.connect(uri);
+    await mongoose.connect(config.mongoUri);
     console.log(`MongoDB connected: ${mongoose.connection.name}`);
   } catch (err) {
     console.error(`MongoDB connection failed: ${err.message}`);

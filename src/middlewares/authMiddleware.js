@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../errors/AppError');
-
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'dev-access-secret';
+const config = require('../config');
 
 function requireAuth(req, res, next) {
   const [scheme, token] = (req.headers.authorization || '').split(' ');
@@ -11,7 +10,7 @@ function requireAuth(req, res, next) {
   }
 
   try {
-    req.user = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    req.user = jwt.verify(token, config.accessSecret);
     next();
   } catch (err) {
     const message = err.name === 'TokenExpiredError' ? 'Token expired' : 'Invalid token';

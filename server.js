@@ -1,5 +1,4 @@
-require('dotenv').config();
-
+const config = require('./src/config');
 const express = require('express');
 const cors = require('cors');
 const connectToDatabase = require('./src/config/database');
@@ -11,17 +10,12 @@ const AppError = require('./src/errors/AppError');
 
 const app = express();
 
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
 app.use(globalLimiter);
 
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || config.corsOrigins.includes(origin)) {
         return callback(null, true);
       }
 
@@ -46,13 +40,11 @@ app.use('/users', userRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = 8000;
-
 async function start() {
   await connectToDatabase();
 
-  app.listen(PORT, () => {
-    console.log(`API listening on http://localhost:${PORT}`);
+  app.listen(config.port, () => {
+    console.log(`API listening on http://localhost:${config.port}`);
   });
 }
 
