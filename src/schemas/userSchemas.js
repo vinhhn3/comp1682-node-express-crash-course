@@ -14,4 +14,9 @@ const password = z
 
 const registerSchema = z.object({ username, password });
 
-module.exports = { registerSchema };
+const loginSchema = z.object({
+  username: z.string({ error: 'username is required' }).trim().min(1, 'username is required'),
+  password: z.string({ error: 'password is required' }).min(1, 'password is required'),
+});
+
+module.exports = { registerSchema, loginSchema };

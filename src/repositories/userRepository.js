@@ -8,6 +8,10 @@ class UserRepository {
   async findByUsername(username) {
     return User.findOne({ username });
   }
+
+  async findByUsernameWithPassword(username) {
+    return User.findOne({ username }).select('+password');
+  }
 }
 
 module.exports = new UserRepository();
