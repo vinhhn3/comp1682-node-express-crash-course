@@ -22,4 +22,10 @@ function cacheMiddleware(seconds) {
   };
 }
 
+function clearCache(req, res, next) {
+  cache.clear();
+  next();
+}
+
 module.exports = cacheMiddleware;
+module.exports.clearCache = clearCache;
