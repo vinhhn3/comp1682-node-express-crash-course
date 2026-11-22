@@ -1,6 +1,8 @@
 const config = require('./src/config');
 const express = require('express');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
+const specs = require('./src/docs/swagger');
 const connectToDatabase = require('./src/config/database');
 const productRoutes = require('./src/routes/productRoutes');
 const userRoutes = require('./src/routes/userRoutes');
@@ -36,6 +38,9 @@ app.get('/health', (req, res) => {
 
 app.use('/products', productRoutes);
 app.use('/users', userRoutes);
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, { customSiteTitle: 'Shop API' }));
+app.get('/api-docs.json', (req, res) => res.json(specs));
 
 app.use(notFound);
 app.use(errorHandler);
