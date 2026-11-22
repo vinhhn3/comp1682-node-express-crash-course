@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const connectToDatabase = require('./src/config/database');
 const productRoutes = require('./src/routes/productRoutes');
+const userRoutes = require('./src/routes/userRoutes');
 const { notFound, errorHandler } = require('./src/middlewares/errorMiddleware');
 
 const app = express();
@@ -14,6 +15,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/products', productRoutes);
+app.use('/users', userRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
