@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Middleware — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a class="here" href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">Middleware · steps 1 and 13</p>
+  <h1>The order is the behaviour</h1>
+  <p class="lede">
+    Middleware is a queue. Each function gets <code>req</code>, <code>res</code> and
+    <code>next</code>. Call <code>next()</code> and the request moves on; send a response and it
+    stops. Turn a box off and watch the request reach a place it should never reach.
+  </p>
+
+  <section class="sec">
+    <div class="card">
+      <div class="spread" style="margin-bottom:12px">
+        <div>
+          <h3>Run one request through the chain</h3>
+          <p style="margin:4px 0 0;font-size:12px;color:var(--muted)">
+            This is a simulation of the real order, not a live call. The statuses match the API.
+          </p>
+        </div>
+        <button class="btn pri" id="send">Send the request</button>
+      </div>
+
+      <div class="grid2" style="grid-template-columns:1.25fr 0.9fr;align-items:start">
+        <div>
+          <span class="dg-cap">the scenario</span>
+          <div class="btns" id="scenarios" style="margin:2px 0 16px">
+            <button class="btn on" data-case="good">good request</button>
+            <button class="btn" data-case="noToken">no token</button>
+            <button class="btn" data-case="badBody">bad body</button>
+            <button class="btn" data-case="evil">foreign origin</button>
+            <button class="btn" data-case="burst">over the limit</button>
+          </div>
+
+          <span class="dg-cap">the switches</span>
+          <div class="btns" id="switches" style="margin:2px 0 14px">
+            <label class="switch"><input type="checkbox" data-key="limit" checked /> limiter</label>
+            <label class="switch"><input type="checkbox" data-key="cors" checked /> cors</label>
+            <label class="switch"><input type="checkbox" data-key="json" checked /> express.json</label>
+            <label class="switch"><input type="checkbox" data-key="auth" checked /> requireAuth</label>
+            <label class="switch"><input type="checkbox" data-key="validate" checked /> validate</label>
+            <label class="switch"><input type="checkbox" data-key="error" checked /> errorHandler</label>
+          </div>
+
+          <div class="chain" id="chain"></div>
+        </div>
+
+        <div>
+          <span class="dg-cap">what the client sees</span>
+          <div class="card" id="result" style="margin-top:2px;min-height:180px;background:#fbfcfe">
+            <p class="resp-meta" style="margin:0">Nothing sent yet. Pick a scenario and press Send.</p>
+          </div>
+
+          <div class="card" style="margin-top:12px;background:#fbfcfe">
+            <h3 style="font-size:13px">The real order in this project</h3>
+            <ol style="margin:8px 0 0;padding-left:18px;font-size:12.5px;line-height:1.9">
+              <li><code>rateLimit</code> — before anything expensive</li>
+              <li><code>cors</code> — before the request is read</li>
+              <li><code>express.json</code> — now there is a body</li>
+              <li><code>routes</code> — match the path</li>
+              <li><code>requireAuth</code> — a route middleware</li>
+              <li><code>validate</code> — another route middleware</li>
+              <li><code>controller</code> — the work</li>
+              <li><code>notFound</code> — only if no route matched</li>
+              <li><code>errorHandler</code> — last, four arguments</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> Three rules that explain the odd behaviour</h2>
+    <div class="grid3" style="margin-top:12px">
+      <div class="card">
+        <h3>1 · Order is registration order</h3>
+        <p style="margin:6px 0 0;font-size:13px">Express runs <code>app.use</code> in the order you wrote it, then the route's own middleware left to right. There is no priority system.</p>
+      </div>
+      <div class="card">
+        <h3>2 · A response stops the queue</h3>
+        <p style="margin:6px 0 0;font-size:13px">If a middleware calls <code>res.json</code> or <code>res.end</code> and does not call <code>next</code>, the handler never runs. That is why auth is cheap and early.</p>
+      </div>
+      <div class="card">
+        <h3>3 · Errors skip to the end</h3>
+        <p style="margin:6px 0 0;font-size:13px"><code>next(err)</code> jumps past every normal middleware, straight to the four-argument handler. Put it last, or it will not catch.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">?</span> Why auth before validate</h2>
+    <div class="card" style="margin-top:12px">
+      <div class="dg-hrow">
+        <div class="dg-box bad" style="min-width:230px;text-align:left">
+          <b>validate → auth</b>
+          <small>an anonymous caller learns your field names and rules, one 400 at a time.</small>
+        </div>
+        <div class="dg-harrow"><span>swap</span></div>
+        <div class="dg-box ok" style="min-width:230px;text-align:left">
+          <b>auth → validate</b>
+          <small>an anonymous caller gets 401 and nothing else. A known caller gets useful 400s.</small>
+        </div>
+      </div>
+      <p class="dg-note">It also saves work: no zod parse for a request that was never allowed in.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const CHAIN = [
+  { key: 'limit', name: 'rateLimit', detail: '100 / minute / IP', where: 'app' },
+  { key: 'cors', name: 'cors()', detail: 'origin allowlist', where: 'app' },
+  { key: 'json', name: 'express.json()', detail: 'collect and parse the body', where: 'app' },
+  { key: 'route', name: 'router match', detail: 'POST /products', where: 'app' },
+  { key: 'auth', name: 'requireAuth', detail: 'Bearer token → req.user', where: 'route' },
+  { key: 'validate', name: 'validate(schema)', detail: 'zod → req.body', where: 'route' },
+  { key: 'controller', name: 'productController.create', detail: '201 + the document', where: 'route' },
+  { key: 'error', name: 'errorHandler', detail: 'only on next(err)', where: 'app' },
+];
+
+const SCENARIOS = {
+  good: { label: 'good request', token: 'user', body: 'valid', origin: 'allowed' },
+  noToken: { label: 'no token', token: null, body: 'valid', origin: 'allowed' },
+  badBody: { label: 'bad body', token: 'user', body: 'invalid', origin: 'allowed' },
+  evil: { label: 'foreign origin', token: 'user', body: 'valid', origin: 'foreign' },
+  burst: { label: 'over the limit', token: 'user', body: 'valid', origin: 'allowed', burst: true },
+};
+
+let scenario = 'good';
+let running = false;
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function buildChain() {
+  $('chain').innerHTML = CHAIN.map(
+    (row) => `
+    <div class="node" data-row="${row.key}">
+      <span class="dg-chip" style="font-size:9.5px">${row.where === 'app' ? 'app' : 'rt'}</span>
+      <span>${row.name}<small>${row.detail}</small></span>
+      <span class="why"></span>
+    </div>`,
+  ).join('');
+}
+
+function reset() {
+  document.querySelectorAll('.chain .node').forEach((node) => {
+    node.classList.remove('on', 'hot', 'stop', 'skipped');
+    node.querySelector('.why').textContent = '';
+  });
+  $('result').innerHTML = '<p class="resp-meta" style="margin:0">running…</p>';
+}
+
+function enabled(key) {
+  const box = document.querySelector(`#switches input[data-key="${key}"]`);
+  return !box || box.checked;
+}
+
+function mark(key, cls, why) {
+  const node = document.querySelector(`.node[data-row="${key}"]`);
+  if (!node) return;
+  node.classList.add(cls);
+  node.querySelector('.why').textContent = why || '';
+}
+
+function result(status, title, body, tone = '') {
+  const cls = status < 300 ? 'ok' : status < 500 ? 'warn' : 'err';
+  $('result').innerHTML = `
+    <div class="resp-line">
+      <span class="status ${cls}">${status || '—'} ${esc(title)}</span>
+    </div>
+    <pre class="resp-json" style="margin-top:10px">${esc(body)}</pre>
+    ${tone ? `<p class="note ${tone === 'bad' ? 'bad' : ''}" style="margin-top:10px">${tone === 'bad' ? 'The client sees an HTML stack trace, not JSON. Nothing above this line is stable.' : 'One error shape, chosen at the edge.'}</p>` : ''}
+  `;
+}
+
+async function run() {
+  if (running) return;
+  running = true;
+  $('send').disabled = true;
+  reset();
+  buildChain();
+
+  const s = SCENARIOS[scenario];
+  const ctx = { ...s };
+
+  const step = async (key) => {
+    await wait(210);
+    mark(key, 'on');
+  };
+
+  for (const row of CHAIN) {
+    if (!enabled(row.key) && row.key !== 'route' && row.key !== 'controller') {
+      mark(row.key, 'skipped', 'off');
+      continue;
+    }
+
+    await step(row.key);
+
+    if (row.key === 'limit' && ctx.burst) {
+      mark(row.key, 'stop', '429');
+      mark('error', enabled('error') ? 'on' : 'skipped', enabled('error') ? 'formats it' : 'missing');
+      result(429, 'Too Many Requests', JSON.stringify({ error: { message: 'Too many requests, slow down', status: 429 } }, null, 2));
+      running = false;
+      $('send').disabled = false;
+      return;
+    }
+
+    if (row.key === 'cors' && ctx.origin === 'foreign') {
+      if (enabled('cors')) {
+        mark(row.key, 'stop', '403');
+        mark('error', enabled('error') ? 'on' : 'skipped', enabled('error') ? 'formats it' : 'missing');
+        result(403, 'Forbidden', JSON.stringify({ error: { message: 'Origin https://evil.example is not allowed', status: 403 } }, null, 2));
+      } else {
+        mark(row.key, 'skipped', 'no header');
+        ctx.corsBroken = true;
+      }
+      running = false;
+      $('send').disabled = false;
+      if (ctx.corsBroken) {
+        mark('controller', 'on', '201, but…');
+        result(201, 'Created', '{ "id": "…", "title": "HTTP Demo" }',
+          'The server answered. The browser refuses to hand the body to your JavaScript because the response has no Access-Control-Allow-Origin. curl shows 201; the page shows a network error.');
+      }
+      return;
+    }
+
+    if (row.key === 'json' && !enabled('json')) {
+      mark(row.key, 'skipped', 'req.body = undefined');
+      ctx.noBody = true;
+      continue;
+    }
+
+    if (row.key === 'json') {
+      mark(row.key, 'on', 'req.body = {…}');
+      continue;
+    }
+
+    if (row.key === 'route') {
+      mark(row.key, 'on', 'matched');
+      continue;
+    }
+
+    if (row.key === 'auth') {
+      if (!ctx.token) {
+        mark(row.key, 'stop', '401');
+        mark('error', enabled('error') ? 'on' : 'skipped', enabled('error') ? 'formats it' : 'missing');
+        result(401, 'Unauthorized', JSON.stringify({ error: { message: 'Missing Bearer token', status: 401 } }, null, 2));
+        running = false;
+        $('send').disabled = false;
+        return;
+      }
+      if (!enabled('auth')) {
+        mark(row.key, 'skipped', 'no req.user');
+        continue;
+      }
+      mark(row.key, 'on', 'req.user set');
+      continue;
+    }
+
+    if (row.key === 'validate') {
+      if (ctx.body === 'invalid') {
+        if (!enabled('validate')) {
+          mark(row.key, 'skipped', 'no check');
+          continue;
+        }
+        mark(row.key, 'stop', '400');
+        mark('error', enabled('error') ? 'on' : 'skipped', enabled('error') ? 'formats it' : 'missing');
+        result(400, 'Bad Request', JSON.stringify({ error: { message: 'Validation failed', status: 400, details: [{ field: 'title', message: 'title is required' }] } }, null, 2));
+        running = false;
+        $('send').disabled = false;
+        return;
+      }
+      mark(row.key, 'on', 'clean');
+      continue;
+    }
+
+    if (row.key === 'controller') {
+      if (ctx.body === 'invalid' && !enabled('validate')) {
+        mark(row.key, 'stop', '500');
+        mark('error', enabled('error') ? 'on' : 'skipped', enabled('error') ? 'formats it' : 'missing');
+        result(500, 'Internal Server Error', enabled('error')
+          ? JSON.stringify({ error: { message: 'Cannot read properties of undefined (reading \'title\')', status: 500 } }, null, 2)
+          : '<!DOCTYPE html>\n<html><body><h1>TypeError</h1><pre>at productController.create …</pre></body></html>',
+        enabled('error') ? '' : 'bad');
+        running = false;
+        $('send').disabled = false;
+        return;
+      }
+      mark(row.key, 'hot', '201');
+      result(201, 'Created', JSON.stringify({
+        id: '665f1c2ab7d1e0a4f2c9b111',
+        title: 'HTTP Demo',
+        category: 'Desk',
+        price: 10,
+        stock: 0,
+      }, null, 2));
+      running = false;
+      $('send').disabled = false;
+      return;
+    }
+  }
+}
+
+document.querySelectorAll('#scenarios .btn').forEach((button) => {
+  button.onclick = () => {
+    scenario = button.dataset.case;
+    document.querySelectorAll('#scenarios .btn').forEach((b) => b.classList.remove('on'));
+    button.classList.add('on');
+  };
+});
+
+$('send').onclick = run;
+buildChain();
+</script>
+</body>
+</html>

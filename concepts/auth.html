@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Auth — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a class="here" href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">Auth · steps 11 to 14</p>
+  <h1>Two tokens, three answers</h1>
+  <p class="lede">
+    A password is checked once. After that the client carries a signed claim. Decode it,
+    compare 401 with 403, then spend a refresh token twice and watch the second attempt fail.
+  </p>
+
+  <section class="sec">
+    <h2><span class="n">0</span> The flow, before the pieces</h2>
+    <p class="sub">Login writes a hash; refresh reads it back and replaces it. Play the arrows — each one carries the value written on it.</p>
+
+    <div class="btns" id="seq-tabs" style="margin-bottom:12px">
+      <button class="btn pri" data-seq="login">login</button>
+      <button class="btn" data-seq="refresh">refresh</button>
+      <button class="btn" data-seq="reuse">reuse old token</button>
+    </div>
+
+    <div class="card">
+      <div class="spread" style="margin-bottom:10px">
+        <h3 id="seq-title" style="margin:0">—</h3>
+        <button class="btn" id="seq-play">Play</button>
+      </div>
+      <div id="auth-seq"></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">1</span> A JWT is three base64 parts</h2>
+    <p class="sub">Header and payload are readable by anyone. The signature is the part that cannot be produced without the secret.</p>
+
+    <div class="btns" style="margin-bottom:12px">
+      <button class="btn pri" id="login-admin">Log in as admin</button>
+      <button class="btn" id="login-demo">Log in as demo</button>
+    </div>
+
+    <div class="card" id="jwt-card" style="margin-bottom:14px">
+      <p class="resp-meta" style="margin:0">Log in to get a real token from this API. The concept server hides the sign-in call, so this page needs no token of its own.</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h3>Header</h3>
+        <pre class="code" id="jwt-header" style="margin-top:8px">—</pre>
+        <p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">The algorithm. Not secret.</p>
+      </div>
+      <div class="card">
+        <h3>Payload</h3>
+        <pre class="code" id="jwt-payload" style="margin-top:8px">—</pre>
+        <p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">The claim: id, username, role, expiry. Readable. Never put a secret here.</p>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Signature</h3>
+      <pre class="code" id="jwt-signature" style="margin-top:8px">—</pre>
+      <p style="font-size:12.5px;color:var(--muted);margin:8px 0 0">
+        <code>HMACSHA256(header.payload, secret)</code>. Change one character of the payload and
+        the server refuses the token. The client can read it; the client cannot forge it.
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">2</span> 401 and 403 are different sentences</h2>
+    <p class="sub">Both are refusals. Only one of them means “try logging in again”.</p>
+    <div class="btns" id="auth-tries" style="margin-bottom:12px">
+      <button class="btn" data-try="no-token">Create with no token</button>
+      <button class="btn" data-try="demo-create">Create as demo</button>
+      <button class="btn" data-try="demo-delete">Demo deletes an admin product</button>
+      <button class="btn" data-try="admin-delete">Admin deletes it</button>
+    </div>
+    <div class="card">
+      <div class="grid2" style="grid-template-columns:0.9fr 1.3fr">
+        <div>
+          <div class="dg-box bad" style="text-align:left;margin-bottom:10px">
+            <b>401 Unauthorized</b>
+            <small>who are you? no token, expired token, bad signature</small>
+          </div>
+          <div class="dg-box bad" style="text-align:left">
+            <b>403 Forbidden</b>
+            <small>I know who you are. You still may not.</small>
+          </div>
+          <p class="dg-note" style="text-align:left">The client's reaction differs: 401 → log in again; 403 → show an error, do not retry.</p>
+        </div>
+        <div>
+          <div class="resp-line" id="try-line"><span class="resp-meta">pick one above</span></div>
+          <dl class="resp-head" id="try-head"></dl>
+          <pre class="resp-json" id="try-body" style="display:none"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">3</span> Rotation: one refresh token, one use</h2>
+    <p class="sub">The access token is short and disposable. The refresh token is long, stored as a hash, and replaced on every use.</p>
+
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="card">
+        <span class="dg-cap">the lifetimes</span>
+        <div class="dg-hrow" style="justify-content:flex-start;margin-top:8px">
+          <div class="dg-box a" style="min-width:150px"><b>access · 15m</b><small>sent on every request</small></div>
+          <div class="dg-box" style="min-width:150px"><b>refresh · 7d</b><small>sent only to rotate</small></div>
+        </div>
+        <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
+          Stolen access token: 15 minutes of damage. Stolen refresh token: the server can revoke
+          it, because a hash of it is in the user document.
+        </p>
+      </div>
+      <div class="card">
+        <span class="dg-cap">the rule</span>
+        <p style="margin:8px 0 0;font-size:13.5px">
+          Every refresh issues a <b>new</b> pair and replaces the stored hash. The old refresh
+          token is now dead. Reusing it is a signal, not a convenience.
+        </p>
+        <p style="margin:8px 0 0;font-size:12.5px;color:var(--muted)">
+          A real system would also revoke the whole family when an old token is reused. That is
+          the next step after this course.
+        </p>
+      </div>
+    </div>
+
+    <div class="btns" style="margin-bottom:12px">
+      <button class="btn pri" id="rotate">Rotate twice</button>
+    </div>
+    <div class="card">
+      <div id="rotate-log"><p class="resp-meta" style="margin:0">Press it: login, refresh with the new token, then try the old one again.</p></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> Where to keep the token</h2>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card">
+        <h3>HttpOnly cookie</h3>
+        <p style="margin:6px 0 0;font-size:13px">JavaScript cannot read it, so an XSS bug cannot exfiltrate it. The browser sends it automatically — which creates CSRF, so pair it with <code>SameSite</code> and a matching CORS origin.</p>
+      </div>
+      <div class="card">
+        <h3>localStorage / a header</h3>
+        <p style="margin:6px 0 0;font-size:13px">Easy for a SPA and for curl, and what this course does. Any script on the page can read it, so one XSS bug is one stolen session. The 15-minute access token limits the damage.</p>
+      </div>
+    </div>
+    <p class="dg-note">The course returns both tokens in the JSON body so you can see them. A production login would put the refresh token in an HttpOnly cookie and keep only the access token in memory.</p>
+  </section>
+
+</div>
+
+<script type="module">
+import { SEQUENCES, renderSequence, togglePlay } from './sequence.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+let seqKey = 'login';
+
+function renderSeq(key) {
+  seqKey = key;
+  const seq = SEQUENCES[key];
+  if (!seq) return;
+
+  document.querySelectorAll('#seq-tabs .btn').forEach((button) => {
+    button.classList.toggle('pri', button.dataset.seq === key);
+  });
+
+  $('seq-title').textContent = seq.title;
+  renderSequence($('auth-seq'), seq);
+}
+
+document.querySelectorAll('#seq-tabs .btn').forEach((button) => {
+  button.onclick = () => renderSeq(button.dataset.seq);
+});
+
+$('seq-play').onclick = () => togglePlay($('auth-seq'), $('seq-play'));
+
+renderSeq('login');
+
+async function call(method, path, body, as) {
+  const data = await fetch('/__call', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ method, path, body, as }),
+  }).then((r) => r.json());
+  return data;
+}
+
+function b64url(part) {
+  const pad = part.replace(/-/g, '+').replace(/_/g, '/');
+  const text = decodeURIComponent(
+    atob(pad + '='.repeat((4 - (pad.length % 4)) % 4))
+      .split('')
+      .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+      .join(''),
+  );
+  return JSON.parse(text);
+}
+
+function renderJwt(token, who) {
+  const [header, payload, signature] = token.split('.');
+  let head;
+  let body;
+  try {
+    head = b64url(header);
+    body = b64url(payload);
+  } catch {
+    $('jwt-card').innerHTML = '<p class="note bad">This does not look like a JWT.</p>';
+    return;
+  }
+
+  const expires = body.exp ? new Date(body.exp * 1000).toLocaleTimeString() : '—';
+
+  $('jwt-card').innerHTML = `
+    <span class="dg-cap">a real token for ${esc(who)}</span>
+    <div class="dg-seg" style="margin-top:6px;width:100%;overflow:auto">
+      <span class="s1" style="flex:0 0 auto">${esc(header)}</span>
+      <span class="s2" style="flex:1 1 auto;overflow:hidden;text-overflow:ellipsis">${esc(payload)}</span>
+      <span class="s3" style="flex:0 0 auto">${esc(signature.slice(0, 14))}…</span>
+    </div>
+    <p class="resp-meta" style="margin-top:10px">three parts, two dots · expires at ${esc(expires)} · role: ${esc(body.role || '—')}</p>
+  `;
+
+  $('jwt-header').textContent = JSON.stringify(head, null, 2);
+  $('jwt-payload').textContent = JSON.stringify(body, null, 2);
+  $('jwt-signature').textContent = signature;
+}
+
+async function login(who) {
+  $('jwt-card').innerHTML = '<p class="resp-meta">logging in…</p>';
+  const data = await call('POST', '/users/login', {
+    username: who === 'admin' ? 'admin' : 'demo',
+    password: who === 'admin' ? 'admin123' : 'demo1234',
+  });
+
+  if (!data.body?.accessToken) {
+    $('jwt-card').innerHTML = `<p class="note bad">${esc(
+      data.error || data.body?.error?.message || `login failed (${data.status})`,
+    )} — is step 12 checked out?</p>`;
+    return null;
+  }
+
+  renderJwt(data.body.accessToken, who);
+  return data.body;
+}
+
+$('login-admin').onclick = () => login('admin');
+$('login-demo').onclick = () => login('demo');
+
+/* ── 401 vs 403 ───────────────────────────────────────────────────── */
+
+const TRIES = {
+  'no-token': { label: 'create with no token', method: 'POST', path: '/products', body: { title: 'No Auth', category: 'Desk', price: 10 } },
+  'demo-create': { label: 'create as demo', method: 'POST', path: '/products', body: { title: 'Auth Demo', category: 'Desk', price: 10 }, as: 'demo' },
+  'demo-delete': { label: 'demo deletes the last product', method: 'DELETE', path: '/products/{lastId}', as: 'demo' },
+  'admin-delete': { label: 'admin deletes the last product', method: 'DELETE', path: '/products/{lastId}', as: 'admin' },
+};
+
+document.querySelectorAll('#auth-tries .btn').forEach((button) => {
+  button.onclick = async () => {
+    const spec = TRIES[button.dataset.try];
+    document.querySelectorAll('#auth-tries .btn').forEach((b) => b.classList.remove('on'));
+    button.classList.add('on');
+    $('try-body').style.display = 'none';
+    $('try-head').innerHTML = '';
+    $('try-line').innerHTML = '<span class="resp-meta">sending…</span>';
+
+    const data = await call(spec.method, spec.path, spec.body, spec.as);
+    const cls = !data.status ? 'err' : data.status < 300 ? 'ok' : data.status < 500 ? 'warn' : 'err';
+    $('try-line').innerHTML = `
+      <span class="status ${cls}">${data.status || 'ERR'} ${esc(data.statusText || '')}</span>
+      <span class="url">${esc(spec.method)} ${esc(data.request?.path || spec.path)}</span>
+    `;
+
+    if (data.error) {
+      $('try-body').style.display = 'block';
+      $('try-body').textContent = data.error;
+    }
+
+    if (data.body !== undefined && data.body !== null) {
+      $('try-body').style.display = 'block';
+      $('try-body').textContent = typeof data.body === 'string' ? data.body : JSON.stringify(data.body, null, 2);
+    }
+  };
+});
+
+/* ── rotation ─────────────────────────────────────────────────────── */
+
+function logRow(n, label, status, note) {
+  const cls = !status ? 'bad' : status < 300 ? '' : status < 500 ? 'mid' : 'bad';
+  return `<div class="try" style="grid-template-columns:34px 1fr auto">
+    <span class="dg-chip" style="justify-self:center">${n}</span>
+    <div class="what">${esc(label)}${note ? `<small>${esc(note)}</small>` : ''}</div>
+    <span class="runs" style="margin:0"><span class="${cls}">${status || 'ERR'}</span></span>
+  </div>`;
+}
+
+$('rotate').onclick = async () => {
+  $('rotate-log').innerHTML = '<p class="resp-meta" style="margin:0">running…</p>';
+
+  const first = await call('POST', '/users/login', { username: 'demo', password: 'demo1234' });
+  if (!first.body?.refreshToken) {
+    $('rotate-log').innerHTML = `<p class="note bad">Login did not return a refreshToken — is step 14 checked out?</p>`;
+    return;
+  }
+
+  const oldToken = first.body.refreshToken;
+  const second = await call('POST', '/users/refresh', { refreshToken: oldToken });
+  const newToken = second.body?.refreshToken;
+  const third = await call('POST', '/users/refresh', { refreshToken: oldToken });
+
+  $('rotate-log').innerHTML = `
+    ${logRow(1, 'Logged in', first.status, `refresh token A …${esc(oldToken.slice(-8))}`)}
+    ${logRow(2, 'Refreshed with A', second.status, newToken ? `a new pair; refresh token B …${esc(newToken.slice(-8))}` : 'no new token')}
+    ${logRow(3, 'Tried A again', third.status, 'A was rotated, so its stored hash no longer matches')}
+    <p class="note ${third.status === 401 ? 'good' : 'bad'}" style="margin-top:12px">
+      ${third.status === 401
+        ? '<strong>Refused.</strong> Rotation worked: one refresh token, one use.'
+        : `Expected 401 for the reused token, got ${third.status}. Check the refresh step.`}
+    </p>
+  `;
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Concepts — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a class="here" href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">Seven ideas, one page each</p>
+  <h1>The things everyone gets stuck on, on the server</h1>
+  <p class="lede">
+    The step page is the spine. These pages go deeper: open one on the projector at the
+    moment the code reaches the problem, press the buttons, and let the room watch.
+    They talk to the same API as the step page.
+  </p>
+
+  <section class="sec">
+    <div class="grid3" style="margin-top:26px">
+
+      <a class="card" href="http.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">HTTP</span>
+        <h2 style="margin-top:12px;font-size:20px">One request, one response</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          Method, path, headers and body in. Status, headers and body out. Send one and
+          watch every part of it.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Send a request →</p>
+      </a>
+
+      <a class="card" href="layers.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">layers</span>
+        <h2 style="margin-top:12px;font-size:20px">Who is allowed to know what</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          The request travels down through six boxes and the response comes back up.
+          Click a box to see its job and what must never appear inside it.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Walk the stack →</p>
+      </a>
+
+      <a class="card" href="sequence.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">sequence</span>
+        <h2 style="margin-top:12px;font-size:20px">Follow one value down and up</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          Twenty-one stories — from the raw server to the test run — in plain words,
+          with the value on every arrow. Play them one hop at a time.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Run a sequence →</p>
+      </a>
+
+      <a class="card" href="folders.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">folders</span>
+        <h2 style="margin-top:12px;font-size:20px">The address is the responsibility</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          The final tree with a job on every folder, who may import whom, and the step where
+          each folder appears. Nothing is created before it is needed.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Read the tree →</p>
+      </a>
+
+      <a class="card" href="middleware.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">middleware</span>
+        <h2 style="margin-top:12px;font-size:20px">The order is the behaviour</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          Turn the middleware on and off and watch a request stop early. Auth before
+          validation, limiter before auth, error handler last.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Run the chain →</p>
+      </a>
+
+      <a class="card" href="auth.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">auth</span>
+        <h2 style="margin-top:12px;font-size:20px">Two tokens, three answers</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          Decode a real JWT, compare 401 and 403, then rotate a refresh token twice with
+          the same old token.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Decode a token →</p>
+      </a>
+
+      <a class="card" href="cors.html" style="text-decoration:none;color:inherit">
+        <span class="tag b">CORS</span>
+        <h2 style="margin-top:12px;font-size:20px">The browser asks first</h2>
+        <p style="color:var(--muted);font-size:13.5px;margin:8px 0 0">
+          The same URL, fetched from this page and from curl. One is blocked by the
+          browser, one is not. See the exact header that decides.
+        </p>
+        <p style="margin:14px 0 0;color:var(--accent);font-weight:600;font-size:13px">Try the cross-origin call →</p>
+      </a>
+
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> When to open which page</h2>
+    <p class="sub">Do not read these out loud. Operate them, for two minutes, at the step where the code has the problem.</p>
+    <table>
+      <tr><th style="width:120px">At step</th><th style="width:170px">Open</th><th>Press</th></tr>
+      <tr>
+        <td><b>0 — raw http</b></td>
+        <td><a href="http.html">http.html</a></td>
+        <td>Send <code>GET /products</code>. Point at the status line, then the headers, then the body.</td>
+      </tr>
+      <tr>
+        <td><b>6 — repository</b></td>
+        <td><a href="layers.html">layers.html</a></td>
+        <td>Walk the six boxes. Ask what each one may import.</td>
+      </tr>
+      <tr>
+        <td><b>9 — errors</b></td>
+        <td><a href="layers.html">layers.html</a> §errors</td>
+        <td>Show where a 404 is born and where it becomes JSON.</td>
+      </tr>
+      <tr>
+        <td><b>13 — auth</b></td>
+        <td><a href="middleware.html">middleware.html</a></td>
+        <td>Turn auth off and on; then put the error handler before the route and watch it never run.</td>
+      </tr>
+      <tr>
+        <td><b>13 — auth</b></td>
+        <td><a href="auth.html">auth.html</a> §1–2</td>
+        <td>Decode the real token, then run the 401 / 403 pair.</td>
+      </tr>
+      <tr>
+        <td><b>14 — refresh</b></td>
+        <td><a href="auth.html">auth.html</a> §3</td>
+        <td><b>Rotate twice</b>: the second call with the first refresh token is refused.</td>
+      </tr>
+      <tr>
+        <td><b>16 — CORS</b></td>
+        <td><a href="cors.html">cors.html</a></td>
+        <td>Fetch directly from this page, then open the same URL in a new tab.</td>
+      </tr>
+    </table>
+  </section>
+
+</div>
+</body>
+</html>

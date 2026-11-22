@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Layers — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a class="here" href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">Architecture · steps 4 to 9</p>
+  <h1>Who is allowed to know what</h1>
+  <p class="lede">
+    The request goes down through the boxes and the response comes back up. Each box has one
+    job and a short list of things it must not know. Click a box to see the boundary.
+  </p>
+
+  <section class="sec">
+    <div class="grid2" style="grid-template-columns:minmax(300px,0.9fr) 1.4fr;align-items:start">
+
+      <div class="card">
+        <div class="spread" style="margin-bottom:10px">
+          <span class="dg-cap" style="margin:0">request ↓</span>
+          <span class="dg-cap" style="margin:0">response ↑</span>
+        </div>
+
+        <div class="layer-list" id="stack">
+          <button class="layer-btn" data-layer="server">
+            <span class="n">1</span><b>server.js</b><small>compose, connect, listen</small>
+          </button>
+          <button class="layer-btn" data-layer="routes">
+            <span class="n">2</span><b>routes</b><small>URL + verb → handler</small>
+          </button>
+          <button class="layer-btn" data-layer="middleware">
+            <span class="n">3</span><b>middleware</b><small>auth, validate, limit, cache</small>
+          </button>
+          <button class="layer-btn" data-layer="controllers">
+            <span class="n">4</span><b>controllers</b><small>status codes and the response</small>
+          </button>
+          <button class="layer-btn" data-layer="repositories">
+            <span class="n">5</span><b>repositories</b><small>the only data access</small>
+          </button>
+          <button class="layer-btn" data-layer="models">
+            <span class="n">6</span><b>models</b><small>the shape and its rules</small>
+          </button>
+          <button class="layer-btn" data-layer="db">
+            <span class="n">7</span><b>MongoDB</b><small>bytes on disk</small>
+          </button>
+        </div>
+
+        <div class="card" style="margin-top:12px;padding:12px;background:#fbfcfe">
+          <b style="font:600 12px var(--mono);color:var(--ink)">config/</b>
+          <p style="margin:4px 0 0;font-size:12px;color:var(--muted)">
+            Sits beside every box. It answers questions; it does not make decisions.
+          </p>
+        </div>
+      </div>
+
+      <div class="card" id="detail" style="min-height:420px"></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> The two rules behind the picture</h2>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card">
+        <h3>1 · Only the repository touches the model</h3>
+        <p style="margin:6px 0 0;font-size:13.5px">
+          A controller that writes <code>Product.find()</code> has become a repository with extra steps.
+          The day you add a cache, a second database or a different shape, you edit HTTP code.
+        </p>
+        <pre class="code" style="margin-top:12px">// controller — right
+const products = await productRepository.findAll(q);
+
+// controller — wrong
+const products = await Product.find({ title: q });</pre>
+      </div>
+      <div class="card">
+        <h3>2 · Only the controller touches req and res</h3>
+        <p style="margin:6px 0 0;font-size:13.5px">
+          A repository that reads <code>req.body</code> cannot be called from a seed script, a
+          job, or a test without faking an HTTP request. Plain data in, plain data out.
+        </p>
+        <pre class="code" style="margin-top:12px">// repository — right
+async create(data) { return Product.create(data); }
+
+// repository — wrong
+async create(req, res) { … }</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">→</span> Where does this file go?</h2>
+    <p class="sub">The question that decides every new file in the project.</p>
+    <div class="card" style="margin-top:12px">
+      <table>
+        <tr><th style="width:42%">The thing</th><th style="width:26%">The home</th><th>Because</th></tr>
+        <tr><td><code>POST /products</code> and its URL</td><td><code>routes/productRoutes.js</code></td><td>a path is a routing fact</td></tr>
+        <tr><td>the 404 for a missing product</td><td><code>controllers/productController.js</code></td><td>it is an HTTP answer</td></tr>
+        <tr><td><code>{ title: { type: String, required: true } }</code></td><td><code>models/product.js</code></td><td>the data shape outlives HTTP</td></tr>
+        <tr><td><code>Product.find(filter)</code></td><td><code>repositories/productRepository.js</code></td><td>only this layer knows the database</td></tr>
+        <tr><td>“who is this Bearer token?”</td><td><code>middlewares/authMiddleware.js</code></td><td>it runs before the handler and can stop it</td></tr>
+        <tr><td>the price must be a positive number</td><td>zod schema + model</td><td>twice, for two different callers</td></tr>
+        <tr><td><code>PORT</code> and the Mongo URI</td><td><code>config/index.js</code></td><td>one reader, one .env.example</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> Where a failure is born</h2>
+    <div class="card" style="margin-top:12px">
+      <div class="dg-stage">
+        <div class="dg-box bad" style="text-align:left;max-width:560px">
+          <b>a layer throws</b>
+          <small>repository: no document · zod: a missing title · auth: a bad signature</small>
+        </div>
+        <div class="dg-arrow"><span>asyncHandler → next(err)</span></div>
+        <div class="dg-box a" style="text-align:left;max-width:560px">
+          <b>errorHandler, last in the stack</b>
+          <small>CastError → 400 · ValidationError → 400 · duplicate key → 409 · AppError → its status · anything else → 500</small>
+        </div>
+        <div class="dg-arrow"><span>one body shape</span></div>
+        <div class="dg-box ok" style="text-align:left;max-width:560px">
+          <b>{ error: { message, status, details? } }</b>
+          <small>the client parses one thing, in every failure</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const LAYERS = {
+  server: {
+    name: 'server.js',
+    sub: 'the composition root',
+    job: 'Read config, connect to MongoDB, mount the middleware and routes, listen on a port. That is the whole file.',
+    knows: ['the port', 'the database URI', 'the order of app.use()'],
+    no: ['product rules', 'SQL or Mongo queries', 'status codes below 404'],
+    file: 'server.js',
+  },
+  routes: {
+    name: 'routes/',
+    sub: 'the table of contents',
+    job: 'Match a method and a path to a controller. Attach the middleware that only this route needs.',
+    knows: ['URLs and HTTP verbs', 'which controller answers', 'which route needs auth or validation'],
+    no: ['a database query', 'a product object being built', 'the response body'],
+    file: 'src/routes/productRoutes.js',
+  },
+  middleware: {
+    name: 'middlewares/',
+    sub: 'the corridor before the handler',
+    job: 'Run on the way in, with req, res and next. Read a header, reject a request, add a field, or wrap res.json.',
+    knows: ['headers', 'req.user', 'the order it runs in'],
+    no: ['the business rules it is protecting', 'how products are stored', 'the final response shape'],
+    file: 'src/middlewares/authMiddleware.js',
+  },
+  controllers: {
+    name: 'controllers/',
+    sub: 'HTTP in, HTTP out',
+    job: 'Read the request, call one repository method, choose a status code and send JSON. No queries, no schema.',
+    knows: ['req.params, req.query, req.body', '201 vs 200 vs 204', 'which repository method to call'],
+    no: ['Product.find()', 'mongoose', 'how the password is hashed'],
+    file: 'src/controllers/productController.js',
+  },
+  repositories: {
+    name: 'repositories/',
+    sub: 'the only data access',
+    job: 'Turn a simple request (find, create, update) into whatever the database needs. Return plain documents.',
+    knows: ['the Mongoose model', 'filters, sorting, updates', 'the database error it may throw'],
+    no: ['req or res', 'status codes', 'tokens or passwords in a header'],
+    file: 'src/repositories/productRepository.js',
+  },
+  models: {
+    name: 'models/',
+    sub: 'the shape and its rules',
+    job: 'Describe a document: field types, required, min, unique, timestamps, and how it becomes JSON.',
+    knows: ['field names and types', 'its own validation', 'the collection name'],
+    no: ['HTTP', 'who is allowed to create one', 'the response status'],
+    file: 'src/models/product.js',
+  },
+  db: {
+    name: 'MongoDB',
+    sub: 'the only box you did not write',
+    job: 'Store documents, enforce unique indexes, answer queries. It knows nothing about Express.',
+    knows: ['collections', 'indexes', 'documents'],
+    no: ['requests', 'tokens', 'status codes'],
+    file: 'mongodb://127.0.0.1:27017/shop',
+  },
+};
+
+const detail = document.getElementById('detail');
+
+function show(key) {
+  const layer = LAYERS[key];
+  document.querySelectorAll('.layer-btn').forEach((b) => b.classList.toggle('on', b.dataset.layer === key));
+
+  detail.innerHTML = `
+    <p class="kicker" style="margin-bottom:6px">layer ${key === 'db' ? '7' : ''}</p>
+    <h2 style="font-size:24px;display:block">${layer.name}</h2>
+    <p style="margin:2px 0 14px;color:var(--muted);font-size:13.5px">${layer.sub}</p>
+
+    <p style="margin:0 0 16px;font-size:14px">${layer.job}</p>
+
+    <div class="grid2">
+      <div>
+        <span class="dg-cap">it knows</span>
+        <ul style="margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.9">
+          ${layer.knows.map((k) => `<li>${k}</li>`).join('')}
+        </ul>
+      </div>
+      <div>
+        <span class="dg-cap">it must not know</span>
+        <ul style="margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.9;color:var(--red)">
+          ${layer.no.map((k) => `<li>${k}</li>`).join('')}
+        </ul>
+      </div>
+    </div>
+
+    <pre class="code" style="margin-top:16px"><span class="file">${layer.file}</span>${
+      key === 'server'
+        ? `require('dotenv').config();
+const app = require('./src/app');
+const connectToDatabase = require('./src/config/database');
+
+async function start() {
+  await connectToDatabase();
+  app.listen(config.port);
+}`
+        : key === 'routes'
+          ? `router.get('/', productController.getAll);
+router.get('/:id', productController.getById);
+router.post('/', requireAuth, validate(createProductSchema), productController.create);
+router.patch('/:id', requireAuth, validate(updateProductSchema), productController.update);
+router.delete('/:id', requireAuth, requireRole('admin'), productController.remove);`
+          : key === 'middleware'
+            ? `function requireAuth(req, res, next) {
+  const [scheme, token] = (req.headers.authorization || '').split(' ');
+  if (scheme !== 'Bearer' || !token) {
+    return next(new AppError('Missing Bearer token', 401));
+  }
+  req.user = jwt.verify(token, config.accessSecret);
+  next();
+}`
+            : key === 'controllers'
+              ? `exports.getById = asyncHandler(async (req, res) => {
+  const product = await productRepository.findById(req.params.id);
+  if (!product) throw new AppError('Product not found', 404);
+  res.json(product);
+});`
+              : key === 'repositories'
+                ? `class ProductRepository {
+  async findAll({ q } = {}) {
+    return Product.find(q ? { title: new RegExp(q, 'i') } : {});
+  }
+  async findById(id) { return Product.findById(id); }
+  async create(data) { return Product.create(data); }
+}`
+                : key === 'models'
+                  ? `const productSchema = new mongoose.Schema({
+  title: { type: String, required: true, trim: true },
+  category: { type: String, required: true, trim: true },
+  price: { type: Number, required: true, min: 0 },
+}, { timestamps: true });`
+                  : `db.products.find({ price: { $lt: 50 } })
+// returns documents; it has never heard of Express`
+    }</pre>
+  `;
+}
+
+document.querySelectorAll('.layer-btn').forEach((button) => {
+  button.onclick = () => show(button.dataset.layer);
+});
+
+show('routes');
+</script>
+</body>
+</html>

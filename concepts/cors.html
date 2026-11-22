@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CORS — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a class="here" href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">CORS · step 16</p>
+  <h1>The browser asks permission first</h1>
+  <p class="lede">
+    This page is served from <code>localhost:5173</code>. The API is on
+    <code>localhost:8000</code>. Different port, different origin. The browser will send the
+    request, then refuse to hand you the answer unless the response says it may.
+  </p>
+
+  <div class="note" style="margin-top:18px">
+    <strong>Who enforces CORS?</strong> The browser, on the response. The server only supplies
+    headers. <code>curl</code>, a mobile app or another server never check them.
+  </div>
+
+  <section class="sec">
+    <h2><span class="n">1</span> The same URL, two clients</h2>
+    <p class="sub">Left: a real fetch from this page, with the browser in the middle. Right: the raw server response, as the concept server sees it.</p>
+
+    <div class="cors-grid">
+      <div class="cors-box">
+        <span class="browser">origin · http://localhost:5173</span>
+        <h4>Browser → API</h4>
+        <div class="btns">
+          <button class="btn pri" id="direct">Fetch :8000/products</button>
+        </div>
+        <div class="cors-result" id="direct-out">not sent yet</div>
+      </div>
+
+      <div class="cors-box">
+        <span class="browser">server → server · no browser</span>
+        <h4>With an Origin header</h4>
+        <div class="btns">
+          <button class="btn" data-origin="http://localhost:5173">Origin :5173</button>
+          <button class="btn" data-origin="https://evil.example">Origin evil.example</button>
+        </div>
+        <div class="cors-result" id="origin-out">not sent yet</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">2</span> The preflight is a separate request</h2>
+    <p class="sub">JSON and an Authorization header are not “simple”, so a POST starts with an OPTIONS. No 2xx, no real request.</p>
+
+    <div class="btns" style="margin-bottom:12px">
+      <button class="btn" id="preflight">Send OPTIONS /products</button>
+    </div>
+    <div class="card">
+      <pre class="resp-json" id="preflight-out" style="margin:0;display:none"></pre>
+      <p class="resp-meta" id="preflight-note" style="margin:0">The browser sends this automatically when you use a JSON body or an Authorization header.</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">?</span> Why curl works and the page does not</h2>
+    <div class="grid3" style="margin-top:12px">
+      <div class="card">
+        <h3>Same origin</h3>
+        <p style="margin:6px 0 0;font-size:13px">Scheme, host and port all match. The browser does not ask anyone. <code>http://localhost:5173</code> and <code>http://127.0.0.1:5173</code> are not the same origin.</p>
+      </div>
+      <div class="card">
+        <h3>Simple request</h3>
+        <p style="margin:6px 0 0;font-size:13px">GET, HEAD or POST with a form content type and no custom headers. It goes straight out; the response still needs the header.</p>
+      </div>
+      <div class="card">
+        <h3>Preflighted request</h3>
+        <p style="margin:6px 0 0;font-size:13px"><code>application/json</code>, <code>Authorization</code>, PATCH, DELETE. The browser sends OPTIONS first and waits for permission.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> The three headers that matter</h2>
+    <div class="card" style="margin-top:12px">
+      <table>
+        <tr><th style="width:34%">Header</th><th>Answers</th></tr>
+        <tr><td><code>Access-Control-Allow-Origin</code></td><td>Which page may read this response? One origin, or <code>*</code>. Not a list.</td></tr>
+        <tr><td><code>Access-Control-Allow-Methods</code></td><td>Which verbs the preflight may use.</td></tr>
+        <tr><td><code>Access-Control-Allow-Headers</code></td><td>Which request headers the preflight may send. <code>Authorization</code> is not automatic.</td></tr>
+        <tr><td><code>Access-Control-Allow-Credentials</code></td><td>May the browser attach cookies? With credentials, <code>*</code> is not allowed as the origin.</td></tr>
+      </table>
+      <p style="font-size:13px;color:var(--muted);margin:12px 0 0">
+        The course's allowlist lives in <code>CORS_ORIGINS</code> and defaults to
+        <code>http://localhost:5173</code> — the concept tab. An origin that is not on the list
+        gets 403 and no allow header.
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">⚠</span> The three mistakes everyone makes</h2>
+    <div class="grid3" style="margin-top:12px">
+      <div class="card">
+        <h3>1 · Blaming the server</h3>
+        <p style="margin:6px 0 0;font-size:13px">The route logs a 200, the browser shows a failure. The server did its part; the response is missing a header the browser wanted.</p>
+      </div>
+      <div class="card">
+        <h3>2 · Adding the header in the error handler</h3>
+        <p style="margin:6px 0 0;font-size:13px">A 500 with no CORS header looks like a network failure in the console. Put <code>cors()</code> early, so even errors carry it.</p>
+      </div>
+      <div class="card">
+        <h3>3 · <code>*</code> with credentials</h3>
+        <p style="margin:6px 0 0;font-size:13px">Cookies plus a wildcard origin is refused by the browser. Echo the exact origin and send <code>Vary: Origin</code>.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+async function call(spec) {
+  return fetch('/__call', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(spec),
+  }).then((r) => r.json());
+}
+
+$('direct').onclick = async () => {
+  const out = $('direct-out');
+  out.innerHTML = 'fetching…';
+  const started = performance.now();
+
+  try {
+    const res = await fetch('http://localhost:8000/products');
+    const text = await res.text();
+    const ms = Math.round(performance.now() - started);
+    out.innerHTML = `<span class="status ok">${res.status} ${esc(res.statusText)}</span>
+      <span class="resp-meta">${ms} ms · ${text.length} bytes</span>
+      <pre class="resp-json" style="margin-top:8px">${esc(text.slice(0, 700))}${text.length > 700 ? '\n…' : ''}</pre>
+      <p class="note good" style="margin-top:8px">The browser read it. The response carried <code>Access-Control-Allow-Origin: http://localhost:5173</code>.</p>`;
+  } catch (err) {
+    const ms = Math.round(performance.now() - started);
+    out.innerHTML = `<span class="status err">blocked</span>
+      <span class="resp-meta">${ms} ms</span>
+      <pre class="resp-json" style="margin-top:8px">${esc(err.message)}</pre>
+      <p class="note bad" style="margin-top:8px">The network tab shows the response. JavaScript never sees it. Either the API is down, or it did not allow <code>http://localhost:5173</code>.</p>`;
+  }
+};
+
+document.querySelectorAll('[data-origin]').forEach((button) => {
+  button.onclick = async () => {
+    const origin = button.dataset.origin;
+    $('origin-out').innerHTML = 'sending…';
+    const data = await call({ method: 'GET', path: '/products', headers: { Origin: origin } });
+    const cls = !data.status ? 'err' : data.status < 300 ? 'ok' : data.status < 500 ? 'warn' : 'err';
+    const acao = data.headers?.['access-control-allow-origin'];
+
+    $('origin-out').innerHTML = `
+      <span class="status ${cls}">${data.status} ${esc(data.statusText || '')}</span>
+      <dl class="resp-head">
+        <dt>allow-origin</dt><dd>${acao ? esc(acao) : '— not sent —'}</dd>
+        <dt>allow-credentials</dt><dd>${esc(data.headers?.['access-control-allow-credentials'] || '—')}</dd>
+      </dl>
+      <p class="resp-meta" style="margin-top:6px">${acao ? 'The browser would let this page read the body.' : 'No allow-origin header: a browser would block the body.'}</p>
+    `;
+  };
+});
+
+$('preflight').onclick = async () => {
+  $('preflight-note').textContent = 'sending…';
+  const data = await call({
+    method: 'OPTIONS',
+    path: '/products',
+    headers: {
+      Origin: 'http://localhost:5173',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'authorization,content-type',
+    },
+  });
+
+  const out = $('preflight-out');
+  out.style.display = 'block';
+  out.textContent = [
+    `HTTP ${data.status} ${data.statusText}`,
+    ...Object.entries(data.headers || {}).map(([k, v]) => `${k}: ${v}`),
+    '',
+    'no body — the preflight only asks a question',
+  ].join('\n');
+
+  $('preflight-note').textContent = data.status === 204 || data.status === 200
+    ? 'The browser got permission. Now it sends the real POST.'
+    : `The preflight got ${data.status}. A browser would stop here and never send the POST.`;
+};
+</script>
+</body>
+</html>

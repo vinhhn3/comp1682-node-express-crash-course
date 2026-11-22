@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Step — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <div class="zones">
+    <div class="zone"><span>CODE</span><b id="z-branch">—</b></div>
+    <div class="zone"><span>API</span><a href="http://localhost:8000/products" target="_blank">localhost:8000</a></div>
+    <div class="zone"><span>CONCEPT</span><b>this page</b></div>
+    <div class="zone" id="health-zone"><span>STATUS</span><b id="health">checking…</b></div>
+  </div>
+
+  <nav class="rail" id="rail" aria-label="steps"></nav>
+
+  <p class="kicker" id="kicker">connecting</p>
+  <h1 id="title">Waiting for the concept server</h1>
+  <p class="lede" id="line">
+    Keep this tab open. Run <code>npm run step 3</code> in the terminal and this page
+    follows the branch by itself.
+  </p>
+
+  <section class="sec" id="body" hidden>
+    <div class="card" id="diagram-card" style="margin-bottom:16px">
+      <div id="diagram"></div>
+    </div>
+
+    <div class="card" id="diff-card" style="margin-bottom:16px">
+      <div class="spread">
+        <div>
+          <h3>What changed since the last step</h3>
+          <p class="diff-stat" id="diff-stat" style="margin:4px 0 0"></p>
+          <p class="mono" id="diff-cmd" style="margin:6px 0 0;font-size:11.5px;color:var(--muted)"></p>
+        </div>
+        <button class="btn" id="diff-toggle" hidden>Hide the diff</button>
+      </div>
+      <div id="diff-body" style="margin-top:14px"></div>
+    </div>
+
+    <div class="card" id="try-card" style="margin-bottom:16px" hidden>
+      <div class="spread" style="margin-bottom:12px">
+        <div>
+          <h3>Try it against the running API</h3>
+          <p style="margin:4px 0 0;font-size:12px;color:var(--muted)">
+            The concept server sends the request for you. Status, headers, body and the
+            equivalent <code>curl</code> — exactly what the room would see in a terminal.
+          </p>
+        </div>
+        <a class="btn" href="http://localhost:8000/products" target="_blank">Open the API</a>
+      </div>
+      <div class="tries" id="tries"></div>
+      <div id="resp"></div>
+    </div>
+
+    <div class="card" id="explain-card" style="margin-bottom:16px" hidden>
+      <div class="spread" style="margin-bottom:12px">
+        <div>
+          <h3>In depth</h3>
+          <p style="margin:4px 0 0;font-size:12px;color:var(--muted)">
+            The idea, the data at each hop, the rules from the deep pages, and a live demo
+            where it helps — all on this page, so the room never has to leave the step.
+          </p>
+        </div>
+        <button class="btn" id="explain-toggle">Hide</button>
+      </div>
+      <div class="explain" id="explain"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card stack">
+        <h3>In this step</h3>
+        <ul id="changed"></ul>
+      </div>
+      <div class="card stack">
+        <h3>Ask the room</h3>
+        <p id="ask" style="margin:0;font-size:13.5px"></p>
+        <a id="press" class="btn pri" target="_blank" hidden></a>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px">
+      <pre class="code" style="margin:0"><span class="file" id="file"></span><code id="code"></code></pre>
+    </div>
+  </section>
+
+  <p class="note" id="hint">
+    This page reads the current git branch from the concept server every second.
+    No reload, no tab juggling: the concept changes when the code does.
+  </p>
+
+</div>
+
+<script type="module">
+import { STEPS, EXPLAIN, STEP_SEQUENCES, stepNumber, LAST_STEP } from './steps.js';
+import { DIAGRAMS } from './diagrams.js';
+import { RICH } from './rich.js';
+import { initWidgets } from './widgets.js';
+import { SEQUENCES, renderSequence, togglePlay } from './sequence.js';
+
+const $ = (id) => document.getElementById(id);
+const rail = $('rail');
+let current = null;
+let manual = false;
+let diffFor = null;
+
+const esc = (s) =>
+  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/* ── diff ─────────────────────────────────────────────────────────── */
+
+function diffHtml(raw, from, to) {
+  const files = [];
+  let file = null;
+  let hunk = null;
+  let dels = [];
+  let adds = [];
+  let oldNo = 0;
+  let newNo = 0;
+
+  const flush = () => {
+    if (!hunk) return;
+    const rows = Math.max(dels.length, adds.length);
+    for (let i = 0; i < rows; i += 1) {
+      hunk.rows.push({ left: dels[i], right: adds[i] });
+    }
+    dels = [];
+    adds = [];
+  };
+
+  for (const line of raw.split('\n')) {
+    if (line.startsWith('diff --git')) {
+      flush();
+      const match = line.match(/ b\/(.*)$/);
+      file = { path: match ? match[1] : line, note: '', hunks: [] };
+      files.push(file);
+      hunk = null;
+    } else if (!file) {
+      continue;
+    } else if (line.startsWith('new file mode')) {
+      file.note = 'new file';
+    } else if (line.startsWith('rename from ')) {
+      file.note = `renamed from ${line.slice(12)}`;
+    } else if (line.startsWith('rename to ')) {
+      file.note = `${file.note} → ${line.slice(10)}`;
+    } else if (line.startsWith('@@')) {
+      flush();
+      const range = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+      oldNo = range ? Number(range[1]) : 0;
+      newNo = range ? Number(range[2]) : 0;
+      hunk = { header: line, rows: [] };
+      file.hunks.push(hunk);
+    } else if (!hunk) {
+      continue;
+    } else if (line.startsWith('-')) {
+      dels.push({ text: line.slice(1), no: oldNo });
+      oldNo += 1;
+    } else if (line.startsWith('+')) {
+      adds.push({ text: line.slice(1), no: newNo });
+      newNo += 1;
+    } else if (line.startsWith(' ')) {
+      flush();
+      const text = line.slice(1);
+      hunk.rows.push({ left: { text, no: oldNo }, right: { text, no: newNo }, ctx: true });
+      oldNo += 1;
+      newNo += 1;
+    }
+  }
+  flush();
+
+  const cell = (side, cls) =>
+    side
+      ? `<div class="diff2-cell ${cls}"><span class="ln">${side.no}</span><span class="tx">${esc(side.text) || '&#8203;'}</span></div>`
+      : '<div class="diff2-cell empty"></div>';
+
+  let html = `<div class="diff2">
+    <div class="diff2-head"><span>before · ${esc(from)}</span><span>after · ${esc(to)}</span></div>`;
+
+  for (const f of files) {
+    html += `<div class="diff2-file">${esc(f.path)}${f.note ? ` <em>${esc(f.note)}</em>` : ''}</div>`;
+    for (const h of f.hunks) {
+      html += `<div class="diff2-hunk">${esc(h.header)}</div>`;
+      for (const row of h.rows) {
+        html += `<div class="diff2-row">${cell(row.left, row.ctx ? 'ctx' : 'del')}${cell(
+          row.right,
+          row.ctx ? 'ctx' : 'add',
+        )}</div>`;
+      }
+    }
+  }
+
+  return `${html}</div>`;
+}
+
+async function loadDiff(n) {
+  if (diffFor === n) return;
+  diffFor = n;
+
+  const body = $('diff-body');
+  const toggle = $('diff-toggle');
+  const stat = $('diff-stat');
+  const cmd = $('diff-cmd');
+
+  body.hidden = true;
+  body.innerHTML = '';
+  toggle.hidden = true;
+  stat.textContent = 'loading…';
+  cmd.textContent = '';
+
+  try {
+    const data = await fetch(`/__diff?step=${n}`, { cache: 'no-store' }).then((r) => r.json());
+
+    if (!data.from || !data.to) {
+      stat.textContent = data.to
+        ? 'Starting point — there is nothing before this.'
+        : 'This step has no branch yet. The diff appears when the branch exists.';
+      return;
+    }
+
+    if (!data.raw.trim()) {
+      stat.textContent = 'No code changes in this step.';
+      return;
+    }
+
+    stat.textContent = (data.stat.split('\n').pop() || '').trim();
+    cmd.textContent = `git diff ${data.from} ${data.to} -- server.js src test`;
+
+    body.innerHTML = diffHtml(data.raw, data.from, data.to);
+    body.hidden = false;
+    toggle.hidden = false;
+    toggle.onclick = () => {
+      body.hidden = !body.hidden;
+      toggle.textContent = body.hidden ? 'Show the diff' : 'Hide the diff';
+    };
+  } catch {
+    stat.textContent = 'diff unavailable — is the concept server running?';
+  }
+}
+
+/* ── try it ───────────────────────────────────────────────────────── */
+
+let sending = false;
+
+function statusClass(status) {
+  if (!status) return 'err';
+  if (status < 300) return 'ok';
+  if (status < 500) return 'warn';
+  return 'err';
+}
+
+function renderResponse(data, spec) {
+  const target = $('resp');
+  const code = data.status;
+  const expected = spec.expect ? ` · expected ${spec.expect}` : '';
+  const url = data.request?.path || spec.path;
+
+  let html = `<div class="resp">
+    <div class="resp-line">
+      <span class="status ${statusClass(code)}">${code || 'ERR'} ${esc(data.statusText || '')}</span>
+      <span class="url">${esc(spec.method || 'GET')} ${esc(url)}</span>
+      <span class="resp-meta">${data.ms ?? 0} ms · ${data.size ?? 0} bytes${expected}</span>
+    </div>`;
+
+  if (data.error) html += `<p class="note bad" style="margin-top:10px">${esc(data.error)}</p>`;
+
+  if (data.runs?.length) {
+    html += `<div class="runs">${data.runs
+      .map((r) => {
+        const cls = !r.status ? 'bad' : r.status < 300 ? '' : r.status < 500 ? 'mid' : 'bad';
+        return `<span class="${cls}">${r.status || 'ERR'}</span>`;
+      })
+      .join('')}</div>`;
+  }
+
+  if (data.headers && Object.keys(data.headers).length) {
+    html += `<dl class="resp-head">${Object.entries(data.headers)
+      .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`)
+      .join('')}</dl>`;
+  }
+
+  if (data.body !== undefined && data.body !== null) {
+    const text = typeof data.body === 'string' ? data.body : JSON.stringify(data.body, null, 2);
+    html += `<pre class="resp-json">${esc(text || '(empty)')}</pre>`;
+  }
+
+  if (data.curl) html += `<div class="curl">${esc(data.curl)}</div>`;
+  html += '</div>';
+
+  target.innerHTML = html;
+}
+
+async function runTry(spec, button) {
+  if (sending) return;
+  sending = true;
+  const label = button.textContent;
+  button.textContent = 'Sending…';
+  button.disabled = true;
+
+  try {
+    const payload = {
+      method: spec.method || 'GET',
+      path: spec.path,
+      body: spec.body,
+      headers: spec.headers,
+      as: spec.as,
+      repeat: spec.repeat,
+    };
+    const data = await fetch('/__call', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+
+    renderResponse(data, spec);
+  } catch (err) {
+    $('resp').innerHTML = `<p class="note bad" style="margin-top:12px">${esc(
+      err.message,
+    )} — is the concept server running?</p>`;
+  } finally {
+    button.textContent = label;
+    button.disabled = false;
+    sending = false;
+  }
+}
+
+function renderTries(step) {
+  const card = $('try-card');
+  const box = $('tries');
+  box.innerHTML = '';
+  $('resp').innerHTML = '';
+
+  if (!step.try?.length) {
+    card.hidden = true;
+    return;
+  }
+
+  card.hidden = false;
+  for (const spec of step.try) {
+    const row = document.createElement('div');
+    row.className = 'try';
+
+    const method = document.createElement('span');
+    method.className = `method ${spec.method || 'GET'}`;
+    method.textContent = spec.method || 'GET';
+
+    const what = document.createElement('div');
+    what.className = 'what';
+    what.innerHTML = `${esc(spec.label)}${spec.note ? `<small>${esc(spec.note)}</small>` : ''}`;
+
+    const button = document.createElement('button');
+    button.className = 'btn';
+    button.textContent = spec.repeat ? `Send ×${spec.repeat}` : 'Send';
+    button.onclick = () => runTry(spec, button);
+
+    row.append(method, what, button);
+    box.append(row);
+  }
+}
+
+/* ── in-depth blocks ─────────────────────────────────────────────── */
+
+function blockHtml(block, stepNo, index) {
+  switch (block.type) {
+    case 'p':
+      return `<p class="ex-p">${block.html}</p>`;
+
+    case 'h':
+      return `<h4 class="ex-h">${esc(block.text)}</h4>`;
+
+    case 'ul':
+      return `<ul class="ex-ul">${block.items.map((item) => `<li>${item}</li>`).join('')}</ul>`;
+
+    case 'note': {
+      const tone = block.tone === 'bad' ? 'bad' : block.tone === 'good' ? 'good' : '';
+      return `<div class="note ${tone}" style="margin:12px 0">${block.html}</div>`;
+    }
+
+    case 'table':
+      return `<div style="overflow:auto;margin:12px 0"><table>
+        <tr>${block.head.map((h) => `<th>${h}</th>`).join('')}</tr>
+        ${block.rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join('')}</tr>`).join('')}
+      </table></div>`;
+
+    case 'code':
+      return `<pre class="code" style="margin:12px 0"><span class="file">${esc(block.file)}</span>${esc(block.text)}</pre>`;
+
+    case 'compare':
+      return `<div class="dg-split" style="margin:12px 0">
+        <div class="dg-panel"><span class="dg-cap">${esc(block.left.label)}</span><pre class="dg-code">${esc(block.left.text)}</pre></div>
+        <div class="dg-panel"><span class="dg-cap">${esc(block.right.label)}</span><pre class="dg-code">${esc(block.right.text)}</pre></div>
+      </div>`;
+
+    case 'flow':
+      return `<div class="ex-flow" style="margin:12px 0">${block.hops
+        .map(
+          (hop, i) => `
+          ${i > 0 ? '<div class="ex-flow-arrow"></div>' : ''}
+          <div class="ex-hop">
+            <b>${esc(hop.at)}</b>
+            <span><code>${esc(hop.data)}</code>${hop.note ? `<small>${esc(hop.note)}</small>` : ''}</span>
+          </div>`,
+        )
+        .join('')}</div>${block.note ? `<p class="dg-note" style="text-align:left">${block.note}</p>` : ''}`;
+
+    case 'tree':
+      return `<div class="ex-tree" style="margin:12px 0">${block.rows
+        .map(
+          ([path, role]) =>
+            `<div class="ex-tree-row"><b>${esc(path)}</b><span>${role}</span></div>`,
+        )
+        .join('')}</div>`;
+
+    case 'seq': {
+      const seq = SEQUENCES[block.key];
+      if (!seq) return '';
+      const id = `seq-${stepNo}-${index}`;
+      return `<div class="seq-head" style="margin-top:16px">
+          <span class="dg-cap" style="margin:0">sequence · ${esc(seq.title)}</span>
+          <button class="btn" data-play="${id}">Play</button>
+        </div>
+        <div class="seq-slot" id="${id}" data-seq-key="${block.key}"></div>`;
+    }
+
+    case 'widget':
+      return `<div class="widget" data-widget="${esc(block.widget)}"></div>`;
+
+    case 'treecode':
+      return `<pre class="code tree-code" style="margin:12px 0">${block.html}</pre>`;
+
+    default:
+      return '';
+  }
+}
+
+function renderExplain(stepNo) {
+  const card = $('explain-card');
+  const body = $('explain');
+  const blocks = [...(EXPLAIN[stepNo] || []), ...(RICH[stepNo] || [])];
+
+  if (!blocks?.length) {
+    card.hidden = true;
+    body.innerHTML = '';
+    return;
+  }
+
+  card.hidden = false;
+  body.hidden = false;
+  $('explain-toggle').textContent = 'Hide';
+
+  const intro = blockHtml(blocks[0], stepNo, 0);
+  const rest = blocks
+    .slice(1)
+    .map((block, index) => blockHtml(block, stepNo, index + 1))
+    .join('');
+
+  const sequences = (STEP_SEQUENCES[stepNo] || [])
+    .map((key, index) => {
+      const seq = SEQUENCES[key];
+      if (!seq) return '';
+      const id = `seq-${stepNo}-${index}`;
+      return `<div class="seq-head" style="margin-top:18px">
+          <span class="dg-cap" style="margin:0">sequence · ${esc(seq.title)}</span>
+          <button class="btn" data-play="${id}">Play</button>
+        </div>
+        <div class="seq-slot" id="${id}" data-seq-key="${key}"></div>`;
+    })
+    .join('');
+
+  body.innerHTML = `${intro}${sequences}${rest}`;
+
+  body.querySelectorAll('.seq-slot').forEach((slot) => {
+    const seq = SEQUENCES[slot.dataset.seqKey];
+    if (seq) renderSequence(slot, seq);
+  });
+
+  body.querySelectorAll('[data-play]').forEach((button) => {
+    button.onclick = () => {
+      const slot = document.getElementById(button.dataset.play);
+      if (slot) togglePlay(slot, button);
+    };
+  });
+
+  initWidgets(body);
+}
+
+$('explain-toggle').onclick = () => {
+  const body = $('explain');
+  body.hidden = !body.hidden;
+  $('explain-toggle').textContent = body.hidden ? 'Show' : 'Hide';
+};
+
+/* ── rail ─────────────────────────────────────────────────────────── */
+
+for (let i = 0; i <= LAST_STEP; i += 1) {
+  const a = document.createElement('a');
+  a.href = `?step=${i}`;
+  a.textContent = String(i).padStart(2, '0');
+  a.dataset.step = i;
+  a.onclick = (event) => {
+    event.preventDefault();
+    manual = true;
+    history.replaceState({}, '', `?step=${i}`);
+    render(i);
+  };
+  rail.append(a);
+}
+
+function render(n) {
+  const step = STEPS[n];
+
+  document.querySelectorAll('.rail a').forEach((a) => {
+    a.classList.toggle('on', Number(a.dataset.step) === Number(n));
+  });
+
+  if (!step) {
+    $('kicker').textContent = 'no concept';
+    $('title').textContent = `No concept for step ${n}`;
+    $('line').textContent = 'Switch to a step branch, or pick one above.';
+    $('body').hidden = true;
+    return;
+  }
+
+  $('kicker').textContent = `step ${String(n).padStart(2, '0')} · ${step.branch}`;
+  $('title').textContent = step.title;
+  $('line').textContent = step.line;
+  $('z-branch').textContent = step.branch;
+
+  $('changed').innerHTML = step.changed.map((item) => `<li>${item}</li>`).join('');
+  $('ask').textContent = step.ask;
+
+  const press = $('press');
+  if (step.press) {
+    press.hidden = false;
+    press.href = step.press.href;
+    press.textContent = step.press.label;
+  } else {
+    press.hidden = true;
+  }
+
+  $('file').textContent = step.code.file;
+  $('code').textContent = step.code.text;
+
+  const diagram = DIAGRAMS[n] ? DIAGRAMS[n]() : '';
+  $('diagram').innerHTML = diagram;
+  $('diagram-card').hidden = !diagram;
+
+  renderTries(step);
+  renderExplain(n);
+
+  $('body').hidden = false;
+  $('hint').innerHTML =
+    'Command for this step: <code>npm run step ' + n + '</code>. ' +
+    'The API is at <a href="http://localhost:8000" target="_blank">localhost:8000</a>.';
+
+  $('diff-card').hidden = false;
+  loadDiff(n);
+}
+
+/* ── health + branch follower ─────────────────────────────────────── */
+
+async function checkHealth() {
+  const el = $('health');
+  try {
+    const data = await fetch('/__health', { cache: 'no-store' }).then((r) => r.json());
+    el.textContent = data.api ? `API up` : 'API down';
+    el.style.color = data.api ? 'var(--green)' : 'var(--red)';
+  } catch {
+    el.textContent = 'no server';
+    el.style.color = 'var(--red)';
+  }
+}
+
+const requested = new URLSearchParams(location.search).get('step');
+if (requested !== null) {
+  manual = true;
+  render(Number(requested));
+}
+
+async function tick() {
+  if (manual) return;
+  try {
+    const res = await fetch('/__step', { cache: 'no-store' });
+    const { branch } = await res.json();
+    if (branch !== current) {
+      current = branch;
+      const n = branch === 'main' ? LAST_STEP : stepNumber(branch);
+      render(n);
+    }
+  } catch {
+    if (current !== 'offline') {
+      current = 'offline';
+      $('kicker').textContent = 'concept server not running';
+      $('title').textContent = 'Start the concept server';
+      $('line').innerHTML =
+        'Run <code>npm run concept</code>. Then <code>npm run step 3</code> and this page follows.';
+      $('body').hidden = true;
+      $('hint').textContent = 'Without the server you can still pick a step above.';
+    }
+  }
+}
+
+tick();
+checkHealth();
+setInterval(tick, 1000);
+setInterval(checkHealth, 4000);
+</script>
+</body>
+</html>

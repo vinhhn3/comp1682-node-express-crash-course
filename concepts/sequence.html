@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sequence — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html" class="here">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">Data flow · twenty-one stories, plain words</p>
+  <h1>Follow the data, not the arrows</h1>
+  <p class="lede">
+    A call arrow carries values down; a dashed return carries a result up. The interesting part
+    is not who calls whom. It is what the value looks like when it arrives, and what each layer
+    is allowed to do with it.
+  </p>
+
+  <section class="sec">
+    <div class="btns" id="cases" style="margin-bottom:14px">
+      <button class="btn" data-case="raw">a request</button>
+      <button class="btn" data-case="body">a body</button>
+      <button class="btn" data-case="route">a router</button>
+      <button class="btn" data-case="controller">a controller</button>
+      <button class="btn" data-case="repository">a repository</button>
+      <button class="btn" data-case="boot">connect</button>
+      <button class="btn" data-case="read">read</button>
+      <button class="btn" data-case="error">an error</button>
+      <button class="btn" data-case="update">update</button>
+      <button class="btn" data-case="register">register</button>
+      <button class="btn" data-case="login">login</button>
+      <button class="btn" data-case="create">create</button>
+      <button class="btn" data-case="refresh">refresh</button>
+      <button class="btn" data-case="reuse">reuse</button>
+      <button class="btn" data-case="limit">rate limit</button>
+      <button class="btn" data-case="preflight">preflight</button>
+      <button class="btn" data-case="cachedRead">cache read</button>
+      <button class="btn" data-case="writeInvalidate">cache write</button>
+      <button class="btn" data-case="bootConfig">config</button>
+      <button class="btn" data-case="docs">docs</button>
+      <button class="btn" data-case="test">test</button>
+    </div>
+
+    <div class="card" id="diagram-card">
+      <div class="spread" style="margin-bottom:10px">
+        <div>
+          <h3 id="seq-title">—</h3>
+          <p id="seq-caption" style="margin:4px 0 0;font-size:12.5px;color:var(--muted)"></p>
+        </div>
+        <button class="btn pri" id="play">Play</button>
+      </div>
+      <div id="seq"></div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">→</span> What travels at each hop</h2>
+    <p class="sub">Plain words, no method names. The shapes are the lesson: a controller that passes a database document upward leaks the database into HTTP.</p>
+    <div class="card">
+      <div id="table"></div>
+    </div>
+    <div class="card" id="note-card" style="margin-top:14px">
+      <p id="note" style="margin:0;font-size:13.5px"></p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">!</span> Four shapes, in order</h2>
+    <div class="grid2" style="margin-top:12px">
+      <div class="card">
+        <h3>HTTP shapes</h3>
+        <p style="margin:6px 0 0;font-size:13px">
+          <code>req.params</code>, <code>req.query</code>, <code>req.body</code>, <code>req.user</code>.
+          Strings from URLs, parsed JSON, a verified token claim. They exist only at the edge and
+          they are the controller's problem.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Plain values</h3>
+        <p style="margin:6px 0 0;font-size:13px">
+          What the controller passes to the repository: <code>{ q: "mug" }</code>,
+          <code>{ title, price }</code>. No <code>req</code>, no status codes. This is the shape
+          that makes a repository callable from anywhere.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Documents</h3>
+        <p style="margin:6px 0 0;font-size:13px">
+          Mongoose documents with getters, <code>_id</code> and timestamps. They belong to the
+          repository and below. The controller may read fields; it must not build queries.
+        </p>
+      </div>
+      <div class="card">
+        <h3>JSON</h3>
+        <p style="margin:6px 0 0;font-size:13px">
+          The <code>toJSON</code> transform maps <code>_id</code> → <code>id</code>, drops
+          <code>__v</code>, and hides <code>password</code>. One place decides what the client
+          ever sees.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script type="module">
+import { SEQUENCES, renderSequence, togglePlay } from './sequence.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+let current = 'read';
+
+function render(key) {
+  const seq = SEQUENCES[key];
+  if (!seq) return;
+  current = key;
+
+  document.querySelectorAll('#cases .btn').forEach((b) => {
+    b.classList.toggle('pri', b.dataset.case === key);
+  });
+
+  $('seq-title').textContent = seq.title;
+  $('seq-caption').textContent = seq.caption;
+  renderSequence($('seq'), seq);
+
+  $('table').innerHTML = `<table>
+    <tr><th style="width:46px">Step</th><th style="width:33%">Hop</th><th>Value</th></tr>
+    ${seq.table
+      .map(
+        ([step, hop, value]) =>
+          `<tr><td><b>${esc(step)}</b></td><td>${esc(hop)}</td><td>${esc(value)}</td></tr>`,
+      )
+      .join('')}
+  </table>`;
+
+  $('note').innerHTML = seq.note;
+
+  history.replaceState({}, '', `?case=${key}`);
+}
+
+document.querySelectorAll('#cases .btn').forEach((button) => {
+  button.onclick = () => render(button.dataset.case);
+});
+
+$('play').onclick = () => togglePlay($('seq'), $('play'));
+
+const requested = new URLSearchParams(location.search).get('case');
+render(SEQUENCES[requested] ? requested : 'read');
+</script>
+</body>
+</html>

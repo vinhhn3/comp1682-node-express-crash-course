@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HTTP — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a class="here" href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">HTTP · step 0 and everything after</p>
+  <h1>One request in, one response out</h1>
+  <p class="lede">
+    Every framework in this course is a convenience on top of this picture. A request is a
+    method, a path, some headers and maybe a body. A response is a status, some headers and
+    maybe a body. Send one and look at each part.
+  </p>
+
+  <section class="sec">
+    <h2><span class="n">1</span> The whole protocol, in one line</h2>
+    <div class="card" style="margin-top:16px">
+      <div class="dg-hrow" style="gap:14px">
+        <div class="dg-box" style="text-align:left;min-width:220px">
+          <b>Request</b>
+          <small>GET /products?q=mug HTTP/1.1</small>
+          <small>Accept: application/json</small>
+          <small>Authorization: Bearer …</small>
+          <small>body: usually empty on GET</small>
+        </div>
+        <div class="dg-harrow"><span>over TCP</span></div>
+        <div class="dg-box a" style="text-align:left;min-width:200px">
+          <b>Your server</b>
+          <small>reads the method and path</small>
+          <small>reads headers and body</small>
+          <small>writes a status and a body</small>
+        </div>
+        <div class="dg-harrow"><span>same connection</span></div>
+        <div class="dg-box ok" style="text-align:left;min-width:220px">
+          <b>Response</b>
+          <small>HTTP/1.1 200 OK</small>
+          <small>Content-Type: application/json</small>
+          <small>X-Total-Count: 6</small>
+          <small>body: [{ … }, { … }]</small>
+        </div>
+      </div>
+      <p class="dg-note">The status line is not decoration. It is the first thing the client reads, and the only thing some clients read.</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">2</span> Send one for real</h2>
+    <p class="sub">These go through the concept server, so they work without thinking about CORS. The API still sees a normal request.</p>
+
+    <div class="btns" id="choices" style="margin-bottom:14px">
+      <button class="btn pri" data-case="list">GET the list</button>
+      <button class="btn" data-case="one">GET one product</button>
+      <button class="btn" data-case="missing">GET a missing product</button>
+      <button class="btn" data-case="create">POST a product</button>
+      <button class="btn" data-case="bad">POST with no title</button>
+    </div>
+
+    <div class="grid2">
+      <div class="card stack">
+        <h3>The request your server receives</h3>
+        <pre class="code" id="req" style="margin:0">press a button</pre>
+      </div>
+      <div class="card stack">
+        <h3>The response your client receives</h3>
+        <div id="res" style="font-size:13px;color:var(--muted)">nothing sent yet</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">3</span> The status code is a sentence</h2>
+    <p class="sub">The number tells the client what kind of thing happened before it reads a single byte of the body.</p>
+    <div class="grid2">
+      <div class="card">
+        <table>
+          <tr><th style="width:78px">Code</th><th>Means</th><th>In this course</th></tr>
+          <tr><td><b>200</b></td><td>here it is</td><td>GET, PATCH</td></tr>
+          <tr><td><b>201</b></td><td>I made it</td><td>POST /products, register</td></tr>
+          <tr><td><b>204</b></td><td>done, no body</td><td>DELETE</td></tr>
+          <tr><td><b>400</b></td><td>your body is wrong</td><td>zod, CastError</td></tr>
+          <tr><td><b>401</b></td><td>I do not know you</td><td>missing or bad token</td></tr>
+          <tr><td><b>403</b></td><td>I know you, and no</td><td>wrong role or owner</td></tr>
+          <tr><td><b>404</b></td><td>not here</td><td>missing product or route</td></tr>
+          <tr><td><b>409</b></td><td>that already exists</td><td>duplicate username</td></tr>
+          <tr><td><b>429</b></td><td>slow down</td><td>rate limiter</td></tr>
+          <tr><td><b>500</b></td><td>I broke</td><td>a bug, not the client</td></tr>
+        </table>
+      </div>
+      <div class="card stack">
+        <h3>Four headers worth knowing</h3>
+        <p style="margin:0"><code>Content-Type</code> — what the body is. JSON is <code>application/json</code>. Without it the client guesses, and guesses wrong.</p>
+        <p style="margin:0"><code>Authorization</code> — the client's proof. In this course: <code>Bearer &lt;token&gt;</code>.</p>
+        <p style="margin:0"><code>Access-Control-Allow-Origin</code> — the server's permission slip for a browser on another origin. curl never asks.</p>
+        <p style="margin:0"><code>Cache-Control</code> / <code>X-Cache</code> — whether this answer came from memory. The course makes its own <code>X-Cache</code>.</p>
+        <div class="note" style="margin-top:4px">
+          <strong>The body is a stream.</strong> Node gives it to you in chunks. Express's
+          <code>express.json()</code> is the middleware that collects the chunks and parses them.
+          Forget it, and <code>req.body</code> is <code>undefined</code>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">4</span> What the framework actually removed</h2>
+    <div class="dg-split">
+      <div class="dg-panel">
+        <span class="dg-cap">raw node — step 0</span>
+        <pre class="dg-code">if (req.method === 'GET' &amp;&amp; req.url === '/products') {
+  res.writeHead(200, {
+    'Content-Type': 'application/json',
+  });
+  res.end(JSON.stringify(products));
+} else {
+  res.writeHead(404);
+  res.end(JSON.stringify({ error: 'Not found' }));
+}</pre>
+      </div>
+      <div class="dg-panel">
+        <span class="dg-cap">express — step 1</span>
+        <pre class="dg-code">app.get('/products', (req, res) =&gt; {
+  res.json(products);
+});
+
+app.use((req, res) =&gt; {
+  res.status(404).json({ error: 'Not found' });
+});</pre>
+      </div>
+    </div>
+    <p class="dg-note">Same bytes on the wire. Fewer decisions repeated per route.</p>
+  </section>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const CASES = {
+  list: { label: 'GET the list', method: 'GET', path: '/products' },
+  one: { label: 'GET one product', method: 'GET', path: '/products/{id}' },
+  missing: { label: 'GET a missing product', method: 'GET', path: '/products/000000000000000000000000' },
+  create: {
+    label: 'POST a product',
+    method: 'POST',
+    path: '/products',
+    body: { title: 'HTTP Demo', category: 'Desk', price: 10 },
+  },
+  bad: {
+    label: 'POST with no title',
+    method: 'POST',
+    path: '/products',
+    body: { category: 'Desk', price: 10 },
+  },
+};
+
+function renderRequest(spec) {
+  let text = `${spec.method} ${spec.path} HTTP/1.1\nHost: localhost:8000\nAccept: application/json`;
+  if (spec.as) text += `\nAuthorization: Bearer <token for ${spec.as}>`;
+  if (spec.body) {
+    text += `\nContent-Type: application/json\n\n${JSON.stringify(spec.body, null, 2)}`;
+  }
+  $('req').textContent = text;
+}
+
+function renderResponse(data) {
+  const cls = !data.status ? 'err' : data.status < 300 ? 'ok' : data.status < 500 ? 'warn' : 'err';
+  let html = `<div class="resp-line" style="margin-bottom:8px">
+    <span class="status ${cls}">${data.status || 'ERR'} ${esc(data.statusText || '')}</span>
+    <span class="resp-meta">${data.ms ?? 0} ms · ${data.size ?? 0} bytes</span>
+  </div>`;
+
+  if (data.headers && Object.keys(data.headers).length) {
+    html += `<dl class="resp-head" style="margin-top:0">${Object.entries(data.headers)
+      .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`)
+      .join('')}</dl>`;
+  }
+
+  if (data.error) html += `<p class="note bad" style="margin-top:10px">${esc(data.error)}</p>`;
+  if (data.body !== undefined && data.body !== null) {
+    const text = typeof data.body === 'string' ? data.body : JSON.stringify(data.body, null, 2);
+    html += `<pre class="resp-json" style="margin-top:10px">${esc(text)}</pre>`;
+  }
+  $('res').innerHTML = html;
+}
+
+async function send(spec) {
+  renderRequest(spec);
+  $('res').innerHTML = '<p class="resp-meta">sending…</p>';
+
+  try {
+    const data = await fetch('/__call', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ method: spec.method, path: spec.path, body: spec.body }),
+    }).then((r) => r.json());
+    renderResponse(data);
+  } catch (err) {
+    $('res').innerHTML = `<p class="note bad">${esc(err.message)}</p>`;
+  }
+}
+
+document.querySelectorAll('#choices .btn').forEach((button) => {
+  button.onclick = () => {
+    document.querySelectorAll('#choices .btn').forEach((b) => b.classList.remove('pri'));
+    button.classList.add('pri');
+    send(CASES[button.dataset.case]);
+  };
+});
+
+send(CASES.list);
+</script>
+</body>
+</html>

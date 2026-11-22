@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Folders — Shop API</title>
+<link rel="stylesheet" href="concepts.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="topnav">
+    <a href="index.html">Concepts</a>
+    <a href="step.html">The step</a>
+    <a href="http.html">HTTP</a>
+    <a href="layers.html">Layers</a>
+    <a href="sequence.html">Sequence</a>
+    <a href="folders.html" class="here">Folders</a>
+    <a href="middleware.html">Middleware</a>
+    <a href="auth.html">Auth</a>
+    <a href="cors.html">CORS</a>
+  </nav>
+
+  <p class="kicker">Architecture · the finished project</p>
+  <h1>The folder is the responsibility</h1>
+  <p class="lede">
+    A file's address answers three questions before anyone opens it: what it does, what it may
+    import, and what it must never know. The tree appears one folder at a time, when the code
+    has the problem the folder solves.
+  </p>
+
+  <section class="sec">
+    <h2><span class="n">1</span> The tree, with the job written on it</h2>
+    <div class="card" style="margin-top:14px">
+      <pre class="code" style="line-height:1.85;font-size:12px">node-express-crash-course/
+├── <b>server.js</b>              <span class="c">entry: connect to MongoDB, then listen</span>
+├── <b>src/</b>
+│   ├── <b>app.js</b>             <span class="c">the Express app — no port, so tests can import it</span>
+│   ├── <b>config/</b>
+│   │   ├── index.js         <span class="c">the only reader of process.env</span>
+│   │   ├── database.js      <span class="c">mongoose.connect, fail fast</span>
+│   │   └── rateLimitConfig.js
+│   ├── <b>routes/</b>            <span class="c">URL + verb → middleware → controller</span>
+│   │   ├── productRoutes.js
+│   │   └── userRoutes.js
+│   ├── <b>controllers/</b>        <span class="c">HTTP in, HTTP out; status codes live here</span>
+│   │   ├── productController.js
+│   │   └── userController.js
+│   ├── <b>repositories/</b>       <span class="c">the only code that touches a model</span>
+│   │   ├── productRepository.js
+│   │   └── userRepository.js
+│   ├── <b>models/</b>             <span class="c">Mongoose schemas: the shape and its rules</span>
+│   │   ├── product.js
+│   │   └── user.js
+│   ├── <b>middlewares/</b>        <span class="c">run before the handler, can stop it</span>
+│   │   ├── authMiddleware.js
+│   │   ├── validate.js
+│   │   ├── cacheMiddleware.js
+│   │   ├── rateLimitMiddleware.js
+│   │   └── errorMiddleware.js
+│   ├── <b>schemas/</b>            <span class="c">zod: what a request body must look like</span>
+│   ├── <b>errors/</b>             <span class="c">AppError: a message and a status</span>
+│   └── <b>utils/</b>              <span class="c">asyncHandler, small helpers</span>
+├── <b>test/</b>                   <span class="c">supertest against app.js, in-memory MongoDB</span>
+├── <b>scripts/</b>                <span class="c">course machinery: step, concept, seed, db</span>
+├── <b>concepts/</b>               <span class="c">this teaching UI</span>
+├── <b>docs/</b>                   <span class="c">run sheet, API notes</span>
+└── <b>.env.example</b>            <span class="c">every value, with a safe development default</span></pre>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">2</span> Who may import whom</h2>
+    <p class="sub">Read a row as “this layer may use…”. A dash is not a style preference; it is the boundary that keeps the layer testable.</p>
+    <div class="card" style="margin-top:14px;overflow:auto">
+      <table style="min-width:760px">
+        <tr>
+          <th style="width:160px">Layer</th>
+          <th>routes</th><th>controllers</th><th>repositories</th><th>models</th><th>middleware</th><th>config</th>
+        </tr>
+        <tr><td><b>routes/</b></td><td>—</td><td>✓</td><td>—</td><td>—</td><td>✓</td><td>—</td></tr>
+        <tr><td><b>controllers/</b></td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>✓</td></tr>
+        <tr><td><b>repositories/</b></td><td>—</td><td>—</td><td>—</td><td>✓</td><td>—</td><td>—</td></tr>
+        <tr><td><b>models/</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td><b>middlewares/</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+        <tr><td><b>app.js</b></td><td>✓</td><td>—</td><td>—</td><td>—</td><td>✓</td><td>✓</td></tr>
+        <tr><td><b>server.js</b></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>✓</td></tr>
+      </table>
+      <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0">
+        “models/ imports nothing” is the strongest line in the table: a model depends on Mongoose
+        and on nothing you wrote. The arrow only ever points down.
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">3</span> The life of one request</h2>
+    <p class="sub">Five hops, three shapes. The same trip is animated, with every payload, on the sequence page.</p>
+    <div class="card" style="margin-top:14px">
+      <div class="ex-flow">
+        <div class="ex-hop"><b>1 · route</b><span><code>POST /products · Bearer … · { title, price }</code><small>the URL is matched; no data is touched yet</small></span></div>
+        <div class="ex-flow-arrow"></div>
+        <div class="ex-hop"><b>2 · middleware</b><span><code>req.user = { id, role } · req.body = { title, category, price }</code><small>auth then validation; either can stop the request</small></span></div>
+        <div class="ex-flow-arrow"></div>
+        <div class="ex-hop"><b>3 · controller</b><span><code>productRepository.create({ ...req.body, createdBy })</code><small>HTTP shapes become plain values</small></span></div>
+        <div class="ex-flow-arrow"></div>
+        <div class="ex-hop"><b>4 · repository</b><span><code>Product.create(data)</code><small>plain values become a Mongoose document</small></span></div>
+        <div class="ex-flow-arrow"></div>
+        <div class="ex-hop"><b>5 · response</b><span><code>201 · { id, title, category, price, createdAt }</code><small>the document becomes JSON, one field at a time</small></span></div>
+      </div>
+      <div class="btns" style="margin-top:14px">
+        <a class="btn pri" href="sequence.html?case=create">Open the sequence, step by step</a>
+        <a class="btn" href="sequence.html?case=error">The same request, one field missing</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">4</span> When each folder appears</h2>
+    <p class="sub">Nothing is created before it is needed. That is why the tree is the last thing that makes sense, not the first.</p>
+    <div class="card" style="margin-top:14px;overflow:auto">
+      <table>
+        <tr><th style="width:70px">Step</th><th style="width:190px">Folder or file</th><th>The problem it solves</th></tr>
+        <tr><td><b>4</b></td><td><code>src/routes/</code></td><td>server.js had every URL in it</td></tr>
+        <tr><td><b>5</b></td><td><code>src/controllers/</code></td><td>the router had the handlers too</td></tr>
+        <tr><td><b>6</b></td><td><code>src/repositories/</code></td><td>the controller owned the data</td></tr>
+        <tr><td><b>7</b></td><td><code>src/config/database.js</code></td><td>the connection string was inline</td></tr>
+        <tr><td><b>8</b></td><td><code>src/models/</code></td><td>the data needed a shape and rules</td></tr>
+        <tr><td><b>9</b></td><td><code>errors/</code>, <code>utils/</code>, <code>schemas/</code>, <code>middlewares/</code></td><td>failure handling, validation and async errors</td></tr>
+        <tr><td><b>11</b></td><td><code>models/user.js</code>, user files</td><td>a second resource with a secret field</td></tr>
+        <tr><td><b>13</b></td><td><code>middlewares/authMiddleware.js</code></td><td>writes needed an identity</td></tr>
+        <tr><td><b>15</b></td><td><code>middlewares/rateLimitMiddleware.js</code></td><td>the API needed a door</td></tr>
+        <tr><td><b>16–18</b></td><td><code>cors</code>, <code>cacheMiddleware.js</code></td><td>browser permission and repeated reads</td></tr>
+        <tr><td><b>19</b></td><td><code>src/config/index.js</code></td><td>five files read the environment</td></tr>
+        <tr><td><b>20–21</b></td><td><code>src/docs/</code>, <code>src/app.js</code>, <code>test/</code></td><td>documentation and a testable app</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">5</span> Where does this new file go?</h2>
+    <div class="grid2" style="margin-top:14px">
+      <div class="card">
+        <h3>The question to ask</h3>
+        <ul class="ex-ul" style="margin-top:8px">
+          <li>Does it know a URL? → <code>routes/</code></li>
+          <li>Does it choose a status code or read <code>req</code>? → <code>controllers/</code></li>
+          <li>Does it call <code>Model.find</code>? → <code>repositories/</code></li>
+          <li>Does it describe stored data? → <code>models/</code></li>
+          <li>Does it run before the handler and maybe stop it? → <code>middlewares/</code></li>
+          <li>Does it only describe a request body? → <code>schemas/</code></li>
+          <li>Does it read the environment? → <code>config/</code></li>
+          <li>Is it a pure helper with no HTTP and no database? → <code>utils/</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Three smells to catch in review</h3>
+        <div class="note bad" style="margin:8px 0">A controller that imports <code>Product</code> and writes a query. The repository has been bypassed.</div>
+        <div class="note bad" style="margin:8px 0">A repository that takes <code>req</code> or returns a status code. It cannot be used by a seed script or a test without faking HTTP.</div>
+        <div class="note bad" style="margin:8px 0">A route with an inline <code>async (req,res) =&gt; {…}</code> body. Now the URL, the rules and the data access live in one line.</div>
+        <div class="note good" style="margin:8px 0">A new feature adds a model, a repository method, a controller, a schema and a route — and touches nothing else.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2><span class="n">6</span> Names that tell the truth</h2>
+    <div class="card" style="margin-top:14px">
+      <table>
+        <tr><th style="width:38%">Thing</th><th>Name</th><th>Why</th></tr>
+        <tr><td>a model</td><td><code>Product</code> in <code>models/product.js</code></td><td>singular, capitalised; the collection is <code>products</code></td></tr>
+        <tr><td>a repository</td><td><code>productRepository</code></td><td>the object, not the class; one instance is enough</td></tr>
+        <tr><td>a controller</td><td><code>productController</code>, methods <code>getAll</code>, <code>getById</code></td><td>the URL vocabulary, not the database vocabulary</td></tr>
+        <tr><td>route middleware</td><td><code>requireAuth</code>, <code>requireRole("admin")</code></td><td>a sentence that can be read at the route</td></tr>
+        <tr><td>request schema</td><td><code>createProductSchema</code>, <code>updateProductSchema</code></td><td>the verb is part of the contract</td></tr>
+        <tr><td>an error</td><td><code>new AppError("Product not found", 404)</code></td><td>one class, one status, one shape</td></tr>
+      </table>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
