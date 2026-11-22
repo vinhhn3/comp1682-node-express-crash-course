@@ -1,4 +1,7 @@
+require('dotenv').config();
+
 const express = require('express');
+const connectToDatabase = require('./src/config/database');
 const productRoutes = require('./src/routes/productRoutes');
 
 const app = express();
@@ -17,6 +20,12 @@ app.use((req, res) => {
 
 const PORT = 8000;
 
-app.listen(PORT, () => {
-  console.log(`API listening on http://localhost:${PORT}`);
-});
+async function start() {
+  await connectToDatabase();
+
+  app.listen(PORT, () => {
+    console.log(`API listening on http://localhost:${PORT}`);
+  });
+}
+
+start();
