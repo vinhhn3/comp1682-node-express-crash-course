@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const connectToDatabase = require('./src/config/database');
 const productRoutes = require('./src/routes/productRoutes');
+const { notFound, errorHandler } = require('./src/middlewares/errorMiddleware');
 
 const app = express();
 
@@ -14,9 +15,8 @@ app.get('/health', (req, res) => {
 
 app.use('/products', productRoutes);
 
-app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' });
-});
+app.use(notFound);
+app.use(errorHandler);
 
 const PORT = 8000;
 
