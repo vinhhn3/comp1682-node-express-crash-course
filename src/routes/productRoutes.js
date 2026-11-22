@@ -1,6 +1,7 @@
 const express = require('express');
 const productController = require('../controllers/productController');
 const validate = require('../middlewares/validate');
+const cacheMiddleware = require('../middlewares/cacheMiddleware');
 const { requireAuth, requireRole } = require('../middlewares/authMiddleware');
 const {
   createProductSchema,
@@ -9,7 +10,7 @@ const {
 
 const router = express.Router();
 
-router.get('/', productController.getAll);
+router.get('/', cacheMiddleware(Number(process.env.CACHE_TTL || 60)), productController.getAll);
 router.get('/:id', productController.getById);
 
 router.post(
