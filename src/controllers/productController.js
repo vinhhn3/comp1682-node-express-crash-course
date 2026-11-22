@@ -1,7 +1,8 @@
 const productRepository = require('../repositories/productRepository');
 
 exports.getAll = async (req, res) => {
-  const products = await productRepository.findAll();
+  const products = await productRepository.findAll(req.query);
+  res.set('X-Total-Count', String(products.length));
   res.json(products);
 };
 
