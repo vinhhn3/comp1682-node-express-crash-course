@@ -12,6 +12,18 @@ class UserRepository {
   async findByUsernameWithPassword(username) {
     return User.findOne({ username }).select('+password');
   }
+
+  async findByIdWithRefreshToken(id) {
+    return User.findById(id).select('+refreshTokenHash');
+  }
+
+  async setRefreshTokenHash(id, hash) {
+    return User.findByIdAndUpdate(id, { refreshTokenHash: hash });
+  }
+
+  async clearRefreshToken(id) {
+    return User.findByIdAndUpdate(id, { $unset: { refreshTokenHash: 1 } });
+  }
 }
 
 module.exports = new UserRepository();
