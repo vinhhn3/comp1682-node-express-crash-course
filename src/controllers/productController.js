@@ -19,18 +19,28 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const product = await productRepository.create(req.body);
+  const product = await productRepository.create({
+    ...req.body,
+    createdBy: req.user.id,
+  });
+
   res.status(201).json(product);
 });
 
 exports.update = asyncHandler(async (req, res) => {
-  const product = await productRepository.updateById(req.params.id, req.body);
+  const product = await productRepository.findById(req.params.id);
 
   if (!product) {
     throw new AppError('Product not found', 404);
   }
 
-  res.json(product);
+  const owner = product.createdBy?.toString();
+  if (req.user.role !== 'admin' && owner !== req.user.id) {
+    throw new AppError('You can only edit your own products', 403);
+  }
+
+  const updated = await productRepository.updateById(req.params.id, req.body);
+  res.json(updated);
 });
 
 exports.remove = asyncHandler(async (req, res) => {

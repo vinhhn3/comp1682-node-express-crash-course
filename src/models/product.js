@@ -11,6 +11,7 @@ const productSchema = new mongoose.Schema(
     },
     description: { type: String, default: '', trim: true },
     stock: { type: Number, default: 0, min: [0, 'stock cannot be negative'] },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   {
     timestamps: true,
