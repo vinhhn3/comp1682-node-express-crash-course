@@ -22,3 +22,23 @@ exports.create = asyncHandler(async (req, res) => {
   const product = await productRepository.create(req.body);
   res.status(201).json(product);
 });
+
+exports.update = asyncHandler(async (req, res) => {
+  const product = await productRepository.updateById(req.params.id, req.body);
+
+  if (!product) {
+    throw new AppError('Product not found', 404);
+  }
+
+  res.json(product);
+});
+
+exports.remove = asyncHandler(async (req, res) => {
+  const product = await productRepository.deleteById(req.params.id);
+
+  if (!product) {
+    throw new AppError('Product not found', 404);
+  }
+
+  res.status(204).end();
+});

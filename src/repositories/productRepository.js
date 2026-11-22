@@ -24,6 +24,17 @@ class ProductRepository {
   async create(data) {
     return Product.create(data);
   }
+
+  async updateById(id, data) {
+    return Product.findByIdAndUpdate(id, data, {
+      new: true,
+      runValidators: true,
+    });
+  }
+
+  async deleteById(id) {
+    return Product.findByIdAndDelete(id);
+  }
 }
 
 module.exports = new ProductRepository();

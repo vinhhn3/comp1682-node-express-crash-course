@@ -18,4 +18,6 @@ const createProductSchema = z.object({
   stock: z.number().int().min(0, 'stock cannot be negative').optional(),
 });
 
-module.exports = { createProductSchema };
+const updateProductSchema = createProductSchema.partial();
+
+module.exports = { createProductSchema, updateProductSchema };
