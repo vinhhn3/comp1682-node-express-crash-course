@@ -1,4 +1,6 @@
-const http = require('node:http');
+const express = require('express');
+
+const app = express();
 
 const products = [
   { id: 1, title: 'Aero Mug', category: 'Kitchen', price: 24, description: 'A thin-walled mug that keeps coffee warm for an hour.', stock: 40 },
@@ -9,19 +11,20 @@ const products = [
   { id: 6, title: 'Field Backpack', category: 'Travel', price: 74, description: 'Waxed canvas, 22 litres, laptop sleeve.', stock: 15 },
 ];
 
-const server = http.createServer((req, res) => {
-  if (req.method === 'GET' && req.url === '/products') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(products));
-    return;
-  }
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
 
-  res.writeHead(404, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ error: 'Not found' }));
+app.get('/products', (req, res) => {
+  res.json(products);
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
 });
 
 const PORT = 8000;
 
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`API listening on http://localhost:${PORT}`);
 });
